@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <rect width="256" height="256" fill="#0A7EA4" rx="32"/>
+  <circle cx="64" cy="64" r="8" fill="#14B8A6"/>
+  <circle cx="192" cy="64" r="8" fill="#14B8A6"/>
+  <circle cx="64" cy="192" r="8" fill="#14B8A6"/>
+  <circle cx="192" cy="192" r="8" fill="#14B8A6"/>
+  <line x1="64" y1="64" x2="192" y2="64" stroke="#14B8A6" stroke-width="3"/>
+  <line x1="64" y1="192" x2="192" y2="192" stroke="#14B8A6" stroke-width="3"/>
+  <line x1="64" y1="64" x2="64" y2="192" stroke="#14B8A6" stroke-width="3"/>
+  <line x1="192" y1="64" x2="192" y2="192" stroke="#14B8A6" stroke-width="3"/>
+  <line x1="64" y1="64" x2="192" y2="192" stroke="#14B8A6" stroke-width="2" opacity="0.4"/>
+  <line x1="192" y1="64" x2="64" y2="192" stroke="#14B8A6" stroke-width="2" opacity="0.4"/>
+  <circle cx="128" cy="128" r="12" fill="#14B8A6"/>
+  <text x="128" y="148" font-family="Arial, sans-serif" font-size="72" font-weight="bold" fill="#FFFFFF" text-anchor="middle">RC</text>
+</svg>

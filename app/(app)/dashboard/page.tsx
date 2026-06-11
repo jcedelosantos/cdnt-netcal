@@ -1,0 +1,55 @@
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth-options';
+import { prisma } from '@/lib/prisma';
+import { withRetry } from '@/lib/db-utils';
+import DashboardClient from './_components/dashboard-client';
+
+export const dynamic = 'force-dynamic';
+
+export default async function DashboardPage() {
+  const session = await getServerSession(authOptions);
+  const userId = (session?.user as any)?.id;
+
+  let stats = { total: 0, recientes: 0, aprobados: 0, pendientes: 0 };
+  let recentProjects: any[] = [];
+
+  try {
+    const total = await withRetry(() => prisma.project.count({ where: { userId } }));
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const recientes = await withRetry(() => prisma.project.count({
+      where: { userId, createdAt: { gte: thirtyDaysAgo } },
+    }));
+    const aprobados = await withRetry(() => prisma.project.count({
+      where: { userId, aprobado: true },
+    }));
+    stats = { total, recientes, aprobados, pendientes: total - aprobados };
+
+    const projects = await withRetry(() => prisma.project.findMany({
+      where: { userId },
+      orderBy: { updatedAt: 'desc' },
+      take: 5,
+      include: { puntos: true },
+    }));
+    recentProjects = projects.map((p: any) => ({
+      id: p?.id,
+      nombre: p?.nombre,
+      cliente: p?.cliente,
+      fecha: p?.fecha?.toISOString(),
+      updatedAt: p?.updatedAt?.toISOString(),
+      categoriaCable: p?.categoriaCable,
+      aprobado: p?.aprobado ?? false,
+      totalPuntos: (p?.puntos ?? []).reduce((acc: number, pt: any) => acc + (pt?.cantidad ?? 0), 0),
+    }));
+  } catch (e: any) {
+    console.error('Dashboard error:', e);
+  }
+
+  return (
+    <DashboardClient
+      stats={stats}
+      recentProjects={recentProjects}
+      userName={session?.user?.name ?? 'Usuario'}
+    />
+  );
+}
