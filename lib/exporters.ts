@@ -68,6 +68,13 @@ export interface ExportData {
   categorias: ExportCategoria[];
   showPrices: boolean;
   totales: ExportTotales | null;
+  pagos?: ExportPago[];
+}
+
+export interface ExportPago {
+  fecha?: string;
+  concepto: string;
+  monto: number;
 }
 
 const simboloMoneda = (moneda?: string) => (moneda === 'USD' ? 'US$' : 'RD$');
@@ -287,7 +294,8 @@ export async function exportarPDF(data: ExportData) {
   // ── TOTALES (derecha) ────────────────────────────────────────────────
   if (showP && data.totales) {
     const t = data.totales;
-    const rows: Array<[string, string, boolean?]> = [
+    // kind: 'total' = total general (verde lima), 'pago' = abono (verde), 'balance' = saldo pendiente
+    const rows: Array<[string, string, ('total' | 'pago' | 'balance')?]> = [
       ['Subtotal', fmtMoney(t.subtotalMateriales)],
     ];
     if (t.margen > 0) rows.push([`Margen de ganancia (${t.margenPct}%)`, fmtMoney(t.margen)]);
@@ -296,7 +304,18 @@ export async function exportarPDF(data: ExportData) {
     if (t.costoConfiguracion > 0) rows.push(['Configuración', fmtMoney(t.costoConfiguracion)]);
     if (t.costoCertificacion > 0) rows.push(['Certificación', fmtMoney(t.costoCertificacion)]);
     rows.push([`ITBIS (${t.itbisPct}%)`, fmtMoney(t.itbisValor)]);
-    rows.push(['Total General', fmtMoney(t.total), true]);
+    rows.push(['Total General', fmtMoney(t.total), 'total']);
+
+    // Pagos recibidos y balance pendiente
+    const pagos = data.pagos ?? [];
+    if (pagos.length > 0) {
+      const totalPagado = pagos.reduce((acc, p) => acc + (p?.monto ?? 0), 0);
+      for (const p of pagos) {
+        const fechaP = p?.fecha ? fmtFecha(p.fecha) : '';
+        rows.push([`Abono: ${p?.concepto ?? 'Pago'}${fechaP ? ` (${fechaP})` : ''}`, `- ${fmtMoney(p?.monto ?? 0)}`, 'pago']);
+      }
+      rows.push(['Balance pendiente', fmtMoney(t.total - totalPagado), 'balance']);
+    }
 
     autoTable(doc, {
       startY: y + 12,
@@ -307,12 +326,20 @@ export async function exportarPDF(data: ExportData) {
       bodyStyles: { fontSize: 10 },
       columnStyles: { 0: {}, 1: { halign: 'right' } },
       didParseCell: (hook) => {
-        const rowMeta = rows[hook.row.index];
-        if (rowMeta?.[2]) {
+        const kind = rows[hook.row.index]?.[2];
+        if (kind === 'total') {
           hook.cell.styles.fontStyle = 'bold';
           hook.cell.styles.fontSize = 12;
           hook.cell.styles.textColor = limeGreen;
           hook.cell.styles.fillColor = [248, 248, 248];
+        } else if (kind === 'pago') {
+          hook.cell.styles.textColor = [22, 130, 90];
+          hook.cell.styles.fontSize = 9;
+        } else if (kind === 'balance') {
+          hook.cell.styles.fontStyle = 'bold';
+          hook.cell.styles.fontSize = 11;
+          hook.cell.styles.textColor = brandBlue;
+          hook.cell.styles.fillColor = [240, 246, 252];
         }
       },
     });

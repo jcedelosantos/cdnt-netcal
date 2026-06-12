@@ -378,6 +378,11 @@ export default function ProjectDetailClient({ projectId }: Props) {
             total: t.total,
           }
         : null,
+      pagos: (project?.pagos ?? []).map((p: any) => ({
+        fecha: p?.fecha ?? undefined,
+        concepto: p?.concepto ?? 'Pago',
+        monto: p?.monto ?? 0,
+      })),
     };
   };
 
@@ -949,6 +954,33 @@ export default function ProjectDetailClient({ projectId }: Props) {
                     <span>Total General:</span>
                     <span className="font-mono text-primary">{fmtMonto(totalesCot.total)}</span>
                   </div>
+
+                  {/* Pagos aplicados y balance pendiente */}
+                  {(project?.pagos ?? []).length > 0 && (() => {
+                    const totalPagado = (project?.pagos ?? []).reduce((acc: number, p: any) => acc + (p?.monto ?? 0), 0);
+                    const balance = totalesCot.total - totalPagado;
+                    return (
+                      <>
+                        <div className="border-t pt-2 mt-1 space-y-1">
+                          <p className="text-xs font-medium text-muted-foreground">Pagos recibidos</p>
+                          {(project?.pagos ?? []).map((p: any) => (
+                            <div key={p.id} className="flex justify-between text-sm text-green-700">
+                              <span>{fmtFecha(p?.fecha)} — {p?.concepto ?? 'Pago'}</span>
+                              <span className="font-mono">− {fmtMonto(p?.monto ?? 0)}</span>
+                            </div>
+                          ))}
+                          <div className="flex justify-between text-sm font-medium pt-1">
+                            <span>Total pagado:</span>
+                            <span className="font-mono text-green-700">− {fmtMonto(totalPagado)}</span>
+                          </div>
+                        </div>
+                        <div className="flex justify-between text-lg font-bold border-t pt-2">
+                          <span>Balance pendiente:</span>
+                          <span className={`font-mono ${balance <= 0 ? 'text-green-600' : 'text-amber-600'}`}>{fmtMonto(balance)}</span>
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
               )}
             </CardContent>
