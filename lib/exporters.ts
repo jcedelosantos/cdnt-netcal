@@ -294,15 +294,12 @@ export async function exportarPDF(data: ExportData) {
   // ── TOTALES (derecha) ────────────────────────────────────────────────
   if (showP && data.totales) {
     const t = data.totales;
+    // Subtotal consolidado: todo antes del ITBIS (materiales + margen + costos),
+    // sin desglosar el margen ni los costos internos en la cotización al cliente.
     // kind: 'total' = total general (verde lima), 'pago' = abono (verde), 'balance' = saldo pendiente
     const rows: Array<[string, string, ('total' | 'pago' | 'balance')?]> = [
-      ['Subtotal', fmtMoney(t.subtotalMateriales)],
+      ['Subtotal', fmtMoney(t.subtotalGeneral)],
     ];
-    if (t.margen > 0) rows.push([`Margen de ganancia (${t.margenPct}%)`, fmtMoney(t.margen)]);
-    if (t.costoManoObra > 0) rows.push(['Mano de obra', fmtMoney(t.costoManoObra)]);
-    if (t.costoTransporte > 0) rows.push(['Transporte', fmtMoney(t.costoTransporte)]);
-    if (t.costoConfiguracion > 0) rows.push(['Configuración', fmtMoney(t.costoConfiguracion)]);
-    if (t.costoCertificacion > 0) rows.push(['Certificación', fmtMoney(t.costoCertificacion)]);
     rows.push([`ITBIS (${t.itbisPct}%)`, fmtMoney(t.itbisValor)]);
     rows.push(['Total General', fmtMoney(t.total), 'total']);
 
@@ -448,20 +445,32 @@ export async function exportarExcel(data: ExportData) {
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1564AF' } };
       cell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
     });
-    const filas: [string, number][] = [['Subtotal materiales', t.subtotalMateriales]];
-    if (t.margen > 0) filas.push([`Margen (${t.margenPct}%)`, t.margen]);
-    if (t.costoManoObra > 0) filas.push(['Mano de obra', t.costoManoObra]);
-    if (t.costoTransporte > 0) filas.push(['Transporte', t.costoTransporte]);
-    if (t.costoConfiguracion > 0) filas.push(['Configuración', t.costoConfiguracion]);
-    if (t.costoCertificacion > 0) filas.push(['Certificación', t.costoCertificacion]);
-    filas.push(['Subtotal general', t.subtotalGeneral]);
-    filas.push([`ITBIS (${t.itbisPct}%)`, t.itbisValor]);
-    filas.push(['TOTAL GENERAL', t.total]);
+    // Subtotal consolidado (sin desglosar margen ni costos internos al cliente)
+    const filas: [string, number][] = [
+      ['Subtotal', t.subtotalGeneral],
+      [`ITBIS (${t.itbisPct}%)`, t.itbisValor],
+      ['TOTAL GENERAL', t.total],
+    ];
+    const idxTotal = filas.length - 1;
+    // Abonos y balance pendiente
+    const pagosX = data.pagos ?? [];
+    let idxBalance = -1;
+    if (pagosX.length > 0) {
+      const totalPagadoX = pagosX.reduce((acc, p) => acc + (p?.monto ?? 0), 0);
+      for (const p of pagosX) {
+        const fechaP = p?.fecha ? fmtFecha(p.fecha) : '';
+        filas.push([`Abono: ${p?.concepto ?? 'Pago'}${fechaP ? ` (${fechaP})` : ''}`, -(p?.monto ?? 0)]);
+      }
+      filas.push(['Balance pendiente', t.total - totalPagadoX]);
+      idxBalance = filas.length - 1;
+    }
     filas.forEach(([k, v], i) => {
       const r = cot.addRow([k, v]);
       r.getCell(2).numFmt = numFmtMoneda;
-      if (i === filas.length - 1) {
+      if (i === idxTotal) {
         r.font = { bold: true, size: 12, color: { argb: 'FF1564AF' } };
+      } else if (i === idxBalance) {
+        r.font = { bold: true, size: 11, color: { argb: 'FF185FA5' } };
       }
     });
   }
@@ -598,15 +607,22 @@ export async function exportarWord(data: ExportData) {
   if (showP && data.totales) {
     const t = data.totales;
     children.push(new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun({ text: 'Resumen de Cotización', color: BLUE })] }));
-    const filas: [string, string, boolean][] = [['Subtotal materiales', fmtMoney(t.subtotalMateriales), false]];
-    if (t.margen > 0) filas.push([`Margen (${t.margenPct}%)`, fmtMoney(t.margen), false]);
-    if (t.costoManoObra > 0) filas.push(['Mano de obra', fmtMoney(t.costoManoObra), false]);
-    if (t.costoTransporte > 0) filas.push(['Transporte', fmtMoney(t.costoTransporte), false]);
-    if (t.costoConfiguracion > 0) filas.push(['Configuración', fmtMoney(t.costoConfiguracion), false]);
-    if (t.costoCertificacion > 0) filas.push(['Certificación', fmtMoney(t.costoCertificacion), false]);
-    filas.push(['Subtotal general', fmtMoney(t.subtotalGeneral), false]);
-    filas.push([`ITBIS (${t.itbisPct}%)`, fmtMoney(t.itbisValor), false]);
-    filas.push(['TOTAL GENERAL', fmtMoney(t.total), true]);
+    // Subtotal consolidado (sin desglosar margen ni costos internos al cliente)
+    const filas: [string, string, boolean][] = [
+      ['Subtotal', fmtMoney(t.subtotalGeneral), false],
+      [`ITBIS (${t.itbisPct}%)`, fmtMoney(t.itbisValor), false],
+      ['TOTAL GENERAL', fmtMoney(t.total), true],
+    ];
+    // Abonos y balance pendiente
+    const pagosW = data.pagos ?? [];
+    if (pagosW.length > 0) {
+      const totalPagadoW = pagosW.reduce((acc, p) => acc + (p?.monto ?? 0), 0);
+      for (const p of pagosW) {
+        const fechaP = p?.fecha ? fmtFecha(p.fecha) : '';
+        filas.push([`Abono: ${p?.concepto ?? 'Pago'}${fechaP ? ` (${fechaP})` : ''}`, `- ${fmtMoney(p?.monto ?? 0)}`, false]);
+      }
+      filas.push(['Balance pendiente', fmtMoney(t.total - totalPagadoW), true]);
+    }
     children.push(new Table({
       width: { size: 60, type: WidthType.PERCENTAGE },
       alignment: AlignmentType.RIGHT,
