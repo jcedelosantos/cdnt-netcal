@@ -16,6 +16,7 @@ import {
   Download, Copy, Trash2, Edit, Camera, DollarSign,
   ToggleLeft, ToggleRight, FileText, FileSpreadsheet, FileDown, FileType2, Save, Clock, Mail,
   Plus, PackagePlus, Receipt, Hash, Wallet, CreditCard,
+  ChevronDown, ChevronRight,
 } from 'lucide-react';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -84,6 +85,7 @@ export default function ProjectDetailClient({ projectId }: Props) {
   const [showAddMaterial, setShowAddMaterial] = useState(false);
   const [newMaterial, setNewMaterial] = useState({ categoria: 'Adicionales', nombre: '', cantidad: 1, unidad: 'und', precioUnit: 0 });
   const [savingMaterial, setSavingMaterial] = useState(false);
+  const [collapsedCats, setCollapsedCats] = useState<Record<string, boolean>>({});
   const [facturando, setFacturando] = useState(false);
   const [newPago, setNewPago] = useState({ concepto: '', monto: 0, fecha: new Date().toISOString().slice(0, 10), metodoPago: 'Transferencia', referencia: '' });
   const [savingPago, setSavingPago] = useState(false);
@@ -699,6 +701,20 @@ export default function ProjectDetailClient({ projectId }: Props) {
               <Save className="w-4 h-4 mr-1" /> {saving ? 'Guardando...' : 'Guardar'}
             </Button>
           )}
+          {(() => {
+            const cats = Object.keys(categorias);
+            const allCollapsed = cats.length > 0 && cats.every((c) => collapsedCats[c]);
+            return (
+              <Button variant="ghost" size="sm" onClick={() => {
+                const next: Record<string, boolean> = {};
+                if (!allCollapsed) cats.forEach((c) => { next[c] = true; });
+                setCollapsedCats(next);
+              }}>
+                {allCollapsed ? <ChevronDown className="w-4 h-4 mr-1" /> : <ChevronRight className="w-4 h-4 mr-1" />}
+                {allCollapsed ? 'Expandir todo' : 'Colapsar todo'}
+              </Button>
+            );
+          })()}
           <Button variant="outline" size="sm" onClick={() => setShowAddMaterial((v) => !v)}>
             <PackagePlus className="w-4 h-4 mr-1" /> Agregar material
           </Button>
@@ -762,17 +778,26 @@ export default function ProjectDetailClient({ projectId }: Props) {
       {Object.entries(categorias).map(([cat, items], ci) => {
         const CatIcon = CATEGORIA_ICONS[cat] ?? Wrench;
         const catColor = CATEGORIA_COLORS[cat] ?? 'bg-gray-100 text-gray-600';
+        const collapsed = !!collapsedCats[cat];
+        const itemsCount = (items ?? []).length;
         return (
           <FadeIn key={cat} delay={0.1 * ci}>
             <Card className="mb-4">
               <CardHeader className="py-3">
-                <CardTitle className="text-sm font-display flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCollapsedCats((prev) => ({ ...prev, [cat]: !prev[cat] }))}
+                  className="w-full flex items-center gap-2 text-left"
+                >
+                  {collapsed ? <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" /> : <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />}
                   <div className={`w-7 h-7 rounded-md flex items-center justify-center ${catColor}`}>
                     <CatIcon className="w-4 h-4" />
                   </div>
-                  {cat}
-                </CardTitle>
+                  <span className="text-sm font-display font-semibold">{cat}</span>
+                  <span className="text-xs text-muted-foreground ml-auto">{itemsCount} {itemsCount === 1 ? 'ítem' : 'ítems'}</span>
+                </button>
               </CardHeader>
+              {!collapsed && (
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
                   <Table>
@@ -855,6 +880,7 @@ export default function ProjectDetailClient({ projectId }: Props) {
                   </Table>
                 </div>
               </CardContent>
+              )}
             </Card>
           </FadeIn>
         );
