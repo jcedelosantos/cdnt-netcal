@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { FadeIn } from '@/components/ui/animate';
-import { Building2, Save, Upload, Trash2, Image as ImageIcon } from 'lucide-react';
+import { Building2, Save, Upload, Trash2, Image as ImageIcon, CreditCard } from 'lucide-react';
 
 interface EmpresaConfig {
   empresaNombre: string;
@@ -16,11 +16,16 @@ interface EmpresaConfig {
   empresaDireccion: string;
   empresaEmail: string;
   empresaLogo: string;
+  empresaBanco: string;
+  empresaCuenta: string;
+  empresaTipoCuenta: string;
+  empresaNombreCuenta: string;
 }
 
 const VACIO: EmpresaConfig = {
   empresaNombre: '', empresaRNC: '', empresaTelefono: '',
   empresaDireccion: '', empresaEmail: '', empresaLogo: '',
+  empresaBanco: '', empresaCuenta: '', empresaTipoCuenta: '', empresaNombreCuenta: '',
 };
 
 export default function ConfigClient() {
@@ -40,6 +45,10 @@ export default function ConfigClient() {
           empresaDireccion: data.config.empresaDireccion ?? '',
           empresaEmail: data.config.empresaEmail ?? '',
           empresaLogo: data.config.empresaLogo ?? '',
+          empresaBanco: data.config.empresaBanco ?? '',
+          empresaCuenta: data.config.empresaCuenta ?? '',
+          empresaTipoCuenta: data.config.empresaTipoCuenta ?? '',
+          empresaNombreCuenta: data.config.empresaNombreCuenta ?? '',
         });
       }
     } catch {
@@ -171,6 +180,37 @@ export default function ConfigClient() {
                 <Input placeholder="Calle, sector, ciudad" value={config.empresaDireccion} onChange={(e) => setField('empresaDireccion', e.target.value)} />
               </div>
             </div>
+          </CardContent>
+        </Card>
+      </FadeIn>
+
+      <FadeIn>
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle className="font-display text-base flex items-center gap-2">
+              <CreditCard className="w-4 h-4 text-primary" /> Información bancaria
+            </CardTitle>
+            <CardDescription>Aparece en las cotizaciones PDF para facilitar el pago</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Nombre del titular de la cuenta</Label>
+                <Input placeholder="Ej: Cedanet Solutions" value={config.empresaNombreCuenta} onChange={(e) => setField('empresaNombreCuenta', e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>Número de cuenta</Label>
+                <Input placeholder="Ej: 9603114302" value={config.empresaCuenta} onChange={(e) => setField('empresaCuenta', e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>Tipo de cuenta</Label>
+                <Input placeholder="Ej: Corriente" value={config.empresaTipoCuenta} onChange={(e) => setField('empresaTipoCuenta', e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>Banco</Label>
+                <Input placeholder="Ej: Banreservas" value={config.empresaBanco} onChange={(e) => setField('empresaBanco', e.target.value)} />
+              </div>
+            </div>
 
             <div className="flex justify-end pt-2">
               <Button onClick={handleSave} disabled={saving} className="bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-700 hover:to-teal-600">
@@ -183,3 +223,4 @@ export default function ConfigClient() {
     </div>
   );
 }
+

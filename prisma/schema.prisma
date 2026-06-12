@@ -21,6 +21,10 @@ model User {
   empresaDireccion String?
   empresaEmail     String?
   empresaLogo      String?  // data URL (base64) del logo
+  empresaBanco         String?
+  empresaCuenta        String?
+  empresaTipoCuenta    String?
+  empresaNombreCuenta  String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   accounts      Account[]
@@ -71,6 +75,10 @@ model Project {
   fecha               DateTime @default(now())
   aprobado            Boolean  @default(false)
   aprobadoEn          DateTime?
+  numeroCotizacion    String?
+  numeroFactura       String?
+  facturadoEn         DateTime?
+  estadoPago          String   @default("pendiente")
   moneda              String   @default("DOP")
   modoAvanzado        Boolean  @default(false)
   tipoInstalacion     String   @default("expuesta")
@@ -97,6 +105,7 @@ model Project {
   user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   puntos              ProjectPoint[]
   materiales          ProjectMaterial[]
+  pagos               Pago[]
 
   @@index([userId])
 }
@@ -108,6 +117,20 @@ model ProjectPoint {
   cantidad      Int     @default(1)
   distancia     Float   @default(30)
   project       Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}
+
+model Pago {
+  id          String   @id @default(cuid())
+  projectId   String
+  concepto    String   @default("Pago")
+  monto       Float
+  fecha       DateTime @default(now())
+  metodoPago  String?
+  referencia  String?
+  createdAt   DateTime @default(now())
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId])
 }

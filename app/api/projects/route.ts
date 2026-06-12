@@ -6,6 +6,7 @@ import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 import { withRetry } from '@/lib/db-utils';
 import { calcularMateriales, type ConfigProyecto } from '@/lib/calculations';
+import { generarNumeroCotizacion } from '@/lib/numeracion';
 
 export async function GET(req: Request) {
   try {
@@ -85,10 +86,14 @@ export async function POST(req: Request) {
       notas, puntos,
     } = body ?? {};
 
+    // Número de cotización automático (COT-AAAA-NNN)
+    const numeroCotizacion = await generarNumeroCotizacion(userId);
+
     // Crear proyecto
     const project = await withRetry(() => prisma.project.create({
       data: {
         userId,
+        numeroCotizacion,
         nombre: nombre ?? 'Proyecto sin nombre',
         cliente: cliente ?? null,
         ubicacion: ubicacion ?? null,

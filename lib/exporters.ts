@@ -39,6 +39,10 @@ export interface ExportEmpresa {
   direccion?: string;
   email?: string;
   logo?: string; // data URL
+  banco?: string;
+  cuenta?: string;
+  tipoCuenta?: string;
+  nombreCuenta?: string;
 }
 
 export interface ExportData {
@@ -52,6 +56,8 @@ export interface ExportData {
     fecha?: string;
     notas?: string;
     aprobado?: boolean;
+    numeroCotizacion?: string;
+    numeroFactura?: string;
   };
   resumen: {
     totalPuntos: number;
@@ -89,160 +95,254 @@ export async function exportarPDF(data: ExportData) {
 
   const doc = new jsPDF({ unit: 'pt', format: 'a4' });
   const pageW = doc.internal.pageSize.getWidth();
-  const marginX = 40;
-  const primary: [number, number, number] = [37, 99, 235]; // blue-600
+  const mX = 40; // margin horizontal
+  const brandBlue: [number, number, number] = [21, 100, 175];  // azul corporativo
+  const limeGreen: [number, number, number] = [100, 175, 0];   // Total General
+  const sepColor: [number, number, number] = [210, 208, 220];
 
-  // Encabezado (membrete de empresa si está configurado, si no marca RedCalc)
   const emp = data.empresa;
-  const tieneEmpresa = !!(emp?.nombre);
-  doc.setFillColor(...primary);
-  doc.rect(0, 0, pageW, 70, 'F');
+  const showP = data.showPrices;
 
-  let textoX = marginX;
+  // Helper: extrae dimensiones de un PNG desde su data URL (bytes 16-23 del header)
+  const getPngDims = (dataUrl: string): { w: number; h: number } => {
+    try {
+      const b64 = dataUrl.split(',')[1] ?? '';
+      const raw = atob(b64.slice(0, 40)); // solo necesitamos los primeros 24 bytes
+      const dv = new DataView(new ArrayBuffer(24));
+      for (let i = 0; i < Math.min(24, raw.length); i++) dv.setUint8(i, raw.charCodeAt(i));
+      return { w: dv.getUint32(16), h: dv.getUint32(20) };
+    } catch { return { w: 1, h: 1 }; }
+  };
+
+  // ── LOGO (esquina superior izquierda) ────────────────────────────────
+  let y = 36;
+  const logoMaxH = 72;
+  let logoRight = mX;
   if (emp?.logo) {
     try {
-      doc.addImage(emp.logo, marginX, 14, 42, 42);
-      textoX = marginX + 54;
-    } catch { /* logo inválido: se ignora */ }
+      const fmt = emp.logo.includes('image/png') ? 'PNG' : 'JPEG';
+      const dims = fmt === 'PNG' ? getPngDims(emp.logo) : { w: 1, h: 1 };
+      const ratio = dims.w > 0 && dims.h > 0 ? dims.w / dims.h : 1;
+      const logoH = logoMaxH;
+      const logoW = Math.round(logoH * ratio);
+      doc.addImage(emp.logo, fmt, mX, y, logoW, logoH);
+      logoRight = mX + logoW + 12;
+    } catch {}
   }
 
-  doc.setTextColor(255, 255, 255);
+  // ── Título grande (derecha): "Factura" si está facturado, si no "Cotización"
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(tieneEmpresa ? 18 : 22);
-  doc.text(tieneEmpresa ? (emp!.nombre as string) : 'RedCalc', textoX, tieneEmpresa ? 32 : 38);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  if (tieneEmpresa) {
-    const contacto: string[] = [];
-    if (emp?.rnc) contacto.push(`RNC: ${emp.rnc}`);
-    if (emp?.telefono) contacto.push(`Tel: ${emp.telefono}`);
-    if (emp?.email) contacto.push(emp.email);
-    if (contacto.length) doc.text(contacto.join('   |   '), textoX, 46);
-    if (emp?.direccion) doc.text(emp.direccion, textoX, 58);
-  } else {
-    doc.text('Cálculo de Materiales para Redes y CCTV', textoX, 54);
-  }
-  const tituloDoc = data.showPrices ? 'COTIZACIÓN' : 'LISTADO DE MATERIALES';
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(12);
-  doc.text(tituloDoc, pageW - marginX, 24, { align: 'right' });
-  // Estado del proyecto (sello con recuadro de color)
-  const estadoTxt = data.project.aprobado ? 'APROBADO' : 'PENDIENTE';
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'bold');
-  const badgeW = doc.getTextWidth(estadoTxt) + 16;
-  const badgeX = pageW - marginX - badgeW;
-  if (data.project.aprobado) doc.setFillColor(34, 197, 94); // green-500
-  else doc.setFillColor(120, 130, 150); // gris
-  doc.roundedRect(badgeX, 33, badgeW, 16, 3, 3, 'F');
-  doc.setTextColor(255, 255, 255);
-  doc.text(estadoTxt, badgeX + 8, 44);
+  doc.setFontSize(34);
+  doc.setTextColor(25, 25, 25);
+  doc.text(data.project.numeroFactura ? 'Factura' : 'Cotización', pageW - mX, y + 28, { align: 'right' });
 
-  // Datos del proyecto
-  let y = 95;
-  doc.setTextColor(20, 20, 20);
+  // ── Info de empresa (columna derecha, debajo del título) ─────────────
+  let ry = y + 48;
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(15);
-  doc.text(data.project.nombre ?? 'Proyecto', marginX, y);
-  y += 18;
-  doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
-  doc.setTextColor(90, 90, 90);
-  const meta: string[] = [];
-  if (data.project.cliente) meta.push(`Cliente: ${data.project.cliente}`);
-  if (data.project.ubicacion) meta.push(`Ubicación: ${data.project.ubicacion}`);
-  meta.push(`Categoría: ${data.project.categoriaCable ?? 'Cat6'}`);
-  meta.push(`Fecha: ${fmtFecha(data.project.fecha)}`);
-  doc.text(meta.join('   |   '), marginX, y);
-  y += 14;
-  doc.text(
-    `Puntos: ${data.resumen.totalPuntos}   |   Cajas de cable: ${data.resumen.totalCajas}   |   Cable: ${Math.round(
-      data.resumen.totalCableMetros,
-    )} m   |   Puntos PoE: ${data.resumen.puntosPoE}`,
-    marginX,
-    y,
-  );
-  y += 12;
-
-  // Tabla por categoría
-  const showP = data.showPrices;
-  for (const cat of data.categorias) {
-    const head = showP
-      ? [['Material', 'Cant.', 'Unidad', 'Precio Unit.', 'Subtotal']]
-      : [['Material', 'Cantidad', 'Unidad']];
-    const bodyRows = cat.items.map((m) =>
-      showP
-        ? [m.nombre, String(m.cantidad), m.unidad, fmtMoney(m.precioUnit), fmtMoney(m.subtotal)]
-        : [m.nombre, String(m.cantidad), m.unidad],
-    );
-
-    // Título de la categoría (salta de página si no cabe)
-    const pageH = doc.internal.pageSize.getHeight();
-    if (y + 60 > pageH) {
-      doc.addPage();
-      y = 50;
+  doc.setTextColor(25, 25, 25);
+  if (emp?.nombre) {
+    doc.text(emp.nombre, pageW - mX, ry, { align: 'right' });
+    ry += 14;
+  }
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(70, 70, 70);
+  if (emp?.rnc) { doc.text(`RNC:${emp.rnc}`, pageW - mX, ry, { align: 'right' }); ry += 12; }
+  if (emp?.email) { doc.text(emp.email, pageW - mX, ry, { align: 'right' }); ry += 12; }
+  if (emp?.telefono) { doc.text(emp.telefono, pageW - mX, ry, { align: 'right' }); ry += 12; }
+  if (emp?.direccion) { doc.text(emp.direccion, pageW - mX, ry, { align: 'right' }); ry += 12; }
+  // Info bancaria (si está configurada)
+  if (emp?.nombreCuenta && emp?.cuenta) {
+    ry += 2;
+    const cuentaLabel = `*Nombre*: ${emp.nombreCuenta}   *Cta*:${emp.cuenta}`;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(50, 50, 50);
+    doc.text(cuentaLabel, pageW - mX, ry, { align: 'right' }); ry += 12;
+    if (emp?.tipoCuenta || emp?.banco) {
+      const bancoLabel = [emp?.tipoCuenta && `*Tipo*: ${emp.tipoCuenta}`, emp?.banco && `*Banco*:${emp.banco}`].filter(Boolean).join('   ');
+      doc.text(bancoLabel, pageW - mX, ry, { align: 'right' }); ry += 12;
     }
-    y += 18;
+  }
+
+  y = Math.max(y + logoMaxH + 10, ry) + 8;
+
+  // ── LÍNEA SEPARADORA ────────────────────────────────────────────────
+  doc.setDrawColor(...sepColor);
+  doc.setLineWidth(0.6);
+  doc.line(mX, y, pageW - mX, y);
+  y += 16;
+
+  // ── BLOQUE CLIENTE (izq) + NÚMERO COTIZACIÓN (der) ──────────────────
+  const colMid = pageW / 2 + 10;
+  const clientStartY = y;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(25, 25, 25);
+  doc.text('Para', mX, y);
+  y += 14;
+
+  if (data.project.cliente) {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
-    doc.setTextColor(...primary);
-    doc.text(cat.nombre, marginX, y);
+    doc.text(data.project.cliente, mX, y);
+    y += 14;
+  }
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(70, 70, 70);
+  if (data.project.ubicacion) { doc.text(data.project.ubicacion, mX, y); y += 12; }
+  if (data.project.categoriaCable) { doc.text(`Categoría cable: ${data.project.categoriaCable}`, mX, y); y += 12; }
 
-    autoTable(doc, {
-      startY: y + 6,
-      head,
-      body: bodyRows,
-      margin: { left: marginX, right: marginX },
-      headStyles: { fillColor: primary, fontSize: 9 },
-      bodyStyles: { fontSize: 9 },
-      styles: { cellPadding: 4 },
-      columnStyles: showP
-        ? { 1: { halign: 'center' }, 2: { halign: 'center' }, 3: { halign: 'right' }, 4: { halign: 'right' } }
-        : { 1: { halign: 'center' }, 2: { halign: 'center' } },
-    });
-    // @ts-ignore - lastAutoTable lo agrega el plugin
-    y = (doc as any).lastAutoTable?.finalY ?? y + 30;
+  // Número de cotización / factura + fecha (columna derecha)
+  const quoteDate = data.project.fecha ? new Date(data.project.fecha) : new Date();
+  const yy = quoteDate.getFullYear();
+  const mm = String(quoteDate.getMonth() + 1).padStart(2, '0');
+  const dd = String(quoteDate.getDate()).padStart(2, '0');
+  const cotNum = data.project.numeroCotizacion || `COT-${yy}${mm}${dd}`;
+  const facNum = data.project.numeroFactura;
+  const fechaStr = `${dd}/${mm}/${yy}`;
+
+  let rowY = clientStartY;
+  const labelVal = (label: string, val: string) => {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(25, 25, 25);
+    doc.text(label, colMid, rowY);
+    doc.setFont('helvetica', 'normal');
+    doc.text(val, pageW - mX, rowY, { align: 'right' });
+    rowY += 16;
+  };
+  labelVal('Cotización #', cotNum);
+  if (facNum) labelVal('Factura #', facNum);
+  labelVal('Fecha', fechaStr);
+
+  y = Math.max(y, rowY) + 8;
+
+  // ── LÍNEA SEPARADORA ────────────────────────────────────────────────
+  doc.setDrawColor(...sepColor);
+  doc.line(mX, y, pageW - mX, y);
+  y += 8;
+
+  // ── TABLA ÚNICA de materiales ────────────────────────────────────────
+  const head = showP
+    ? [['Servicio', 'Cantidad', 'Precio', 'Importe']]
+    : [['Servicio', 'Cantidad', 'Unidad']];
+
+  const bodyRows: any[] = [];
+  for (const cat of data.categorias) {
+    // Fila separadora de categoría (sutil)
+    const catSpan = showP ? 4 : 3;
+    bodyRows.push([{
+      content: cat.nombre,
+      colSpan: catSpan,
+      styles: {
+        fontStyle: 'bold' as const,
+        fillColor: [235, 244, 255] as [number, number, number],
+        textColor: brandBlue,
+        fontSize: 8.5,
+        cellPadding: { top: 5, bottom: 5, left: 8, right: 8 },
+      },
+    }]);
+    for (const m of cat.items) {
+      bodyRows.push(showP
+        ? [m.nombre, String(m.cantidad), fmtMoney(m.precioUnit), fmtMoney(m.subtotal)]
+        : [m.nombre, String(m.cantidad), m.unidad],
+      );
+    }
   }
 
-  // Cotización
+  autoTable(doc, {
+    startY: y,
+    head,
+    body: bodyRows,
+    margin: { left: mX, right: mX },
+    headStyles: {
+      fillColor: brandBlue,
+      textColor: [255, 255, 255] as [number, number, number],
+      fontSize: 10,
+      fontStyle: 'bold',
+      halign: 'center',
+    },
+    bodyStyles: { fontSize: 9, cellPadding: { top: 6, bottom: 6, left: 8, right: 8 } },
+    alternateRowStyles: { fillColor: [248, 251, 255] as [number, number, number] },
+    columnStyles: showP
+      ? {
+          0: { cellWidth: 'auto' },
+          1: { halign: 'center', cellWidth: 60 },
+          2: { halign: 'right', cellWidth: 90 },
+          3: { halign: 'right', cellWidth: 90 },
+        }
+      : {
+          0: { cellWidth: 'auto' },
+          1: { halign: 'center', cellWidth: 70 },
+          2: { halign: 'center', cellWidth: 70 },
+        },
+  });
+
+  y = (doc as any).lastAutoTable?.finalY ?? y + 30;
+
+  // ── TOTALES (derecha) ────────────────────────────────────────────────
   if (showP && data.totales) {
     const t = data.totales;
-    const rows: [string, string][] = [['Subtotal materiales', fmtMoney(t.subtotalMateriales)]];
+    const rows: Array<[string, string, boolean?]> = [
+      ['Subtotal', fmtMoney(t.subtotalMateriales)],
+    ];
     if (t.margen > 0) rows.push([`Margen de ganancia (${t.margenPct}%)`, fmtMoney(t.margen)]);
     if (t.costoManoObra > 0) rows.push(['Mano de obra', fmtMoney(t.costoManoObra)]);
     if (t.costoTransporte > 0) rows.push(['Transporte', fmtMoney(t.costoTransporte)]);
     if (t.costoConfiguracion > 0) rows.push(['Configuración', fmtMoney(t.costoConfiguracion)]);
     if (t.costoCertificacion > 0) rows.push(['Certificación', fmtMoney(t.costoCertificacion)]);
-    rows.push(['Subtotal general', fmtMoney(t.subtotalGeneral)]);
     rows.push([`ITBIS (${t.itbisPct}%)`, fmtMoney(t.itbisValor)]);
-    rows.push(['TOTAL GENERAL', fmtMoney(t.total)]);
+    rows.push(['Total General', fmtMoney(t.total), true]);
 
     autoTable(doc, {
-      startY: y + 10,
-      body: rows,
-      margin: { left: pageW / 2, right: marginX },
+      startY: y + 12,
+      body: rows.map(([k, v]) => [k, v]),
+      margin: { left: pageW * 0.52, right: mX },
       theme: 'plain',
+      styles: { cellPadding: { top: 4, bottom: 4, left: 6, right: 6 } },
       bodyStyles: { fontSize: 10 },
-      columnStyles: { 0: { fontStyle: 'bold' }, 1: { halign: 'right' } },
+      columnStyles: { 0: {}, 1: { halign: 'right' } },
       didParseCell: (hook) => {
-        if (hook.row.index === rows.length - 1) {
+        const rowMeta = rows[hook.row.index];
+        if (rowMeta?.[2]) {
           hook.cell.styles.fontStyle = 'bold';
           hook.cell.styles.fontSize = 12;
-          hook.cell.styles.textColor = primary;
+          hook.cell.styles.textColor = limeGreen;
+          hook.cell.styles.fillColor = [248, 248, 248];
         }
       },
     });
   }
 
-  // Pie de página
+  // ── NOTAS ────────────────────────────────────────────────────────────
+  if (data.project.notas) {
+    y = (doc as any).lastAutoTable?.finalY ?? y;
+    y += 20;
+    const pageH = doc.internal.pageSize.getHeight();
+    if (y + 30 > pageH - 40) { doc.addPage(); y = 50; }
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(50, 50, 50);
+    doc.text('Notas:', mX, y);
+    doc.setFont('helvetica', 'normal');
+    y += 12;
+    const lines = doc.splitTextToSize(data.project.notas, pageW - mX * 2);
+    doc.text(lines, mX, y);
+  }
+
+  // ── PIE DE PÁGINA ────────────────────────────────────────────────────
   const pages = doc.getNumberOfPages();
   for (let i = 1; i <= pages; i++) {
     doc.setPage(i);
     const h = doc.internal.pageSize.getHeight();
     doc.setFontSize(8);
-    doc.setTextColor(150, 150, 150);
-    doc.text('Generado con RedCalc', marginX, h - 20);
-    doc.text(`Página ${i} de ${pages}`, pageW - marginX, h - 20, { align: 'right' });
+    doc.setTextColor(170, 170, 170);
+    doc.text('Generado con RedCalc', mX, h - 20);
+    doc.text(`Página ${i} de ${pages}`, pageW - mX, h - 20, { align: 'right' });
   }
 
   doc.save(safeName(data.project.nombre, 'pdf'));
@@ -273,7 +373,7 @@ export async function exportarExcel(data: ExportData) {
   if (emp?.nombre) {
     const r1 = ws.addRow([emp.nombre]);
     ws.mergeCells(r1.number, 1, r1.number, nCols);
-    r1.getCell(1).font = { bold: true, size: 14, color: { argb: 'FF2563EB' } };
+    r1.getCell(1).font = { bold: true, size: 14, color: { argb: 'FF1564AF' } };
     const contacto: string[] = [];
     if (emp?.rnc) contacto.push(`RNC: ${emp.rnc}`);
     if (emp?.telefono) contacto.push(`Tel: ${emp.telefono}`);
@@ -290,7 +390,7 @@ export async function exportarExcel(data: ExportData) {
   // Encabezado de la tabla
   const headerRow = ws.addRow(cols);
   headerRow.eachCell((cell) => {
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2563EB' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1564AF' } };
     cell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
     cell.alignment = { vertical: 'middle', horizontal: 'center' };
   });
@@ -318,7 +418,7 @@ export async function exportarExcel(data: ExportData) {
       { header: 'Monto', key: 'v', width: 20 },
     ];
     cot.getRow(1).eachCell((cell) => {
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2563EB' } };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1564AF' } };
       cell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
     });
     const filas: [string, number][] = [['Subtotal materiales', t.subtotalMateriales]];
@@ -334,7 +434,7 @@ export async function exportarExcel(data: ExportData) {
       const r = cot.addRow([k, v]);
       r.getCell(2).numFmt = numFmtMoneda;
       if (i === filas.length - 1) {
-        r.font = { bold: true, size: 12, color: { argb: 'FF2563EB' } };
+        r.font = { bold: true, size: 12, color: { argb: 'FF1564AF' } };
       }
     });
   }
@@ -354,7 +454,7 @@ export async function exportarWord(data: ExportData) {
   } = docx;
 
   const showP = data.showPrices;
-  const BLUE = '2563EB';
+  const BLUE = '1564AF';
   const emp = data.empresa;
   const sim = simboloMoneda(data.moneda);
   const fmtMoney = (n: number) => fmtMoneyBase(n, sim);
@@ -404,10 +504,11 @@ export async function exportarWord(data: ExportData) {
       new Paragraph({ children: [new TextRun({ text: 'Cálculo de Materiales para Redes y CCTV', size: 18, color: '666666' })] }),
     );
   }
+  const tituloDoc = !showP ? 'LISTADO DE MATERIALES' : (data.project.numeroFactura ? 'FACTURA' : 'COTIZACIÓN');
   children.push(
     new Paragraph({
       alignment: AlignmentType.RIGHT,
-      children: [new TextRun({ text: showP ? 'COTIZACIÓN' : 'LISTADO DE MATERIALES', bold: true, size: 24 })],
+      children: [new TextRun({ text: tituloDoc, bold: true, size: 24 })],
     }),
     new Paragraph({
       alignment: AlignmentType.RIGHT,
@@ -420,6 +521,8 @@ export async function exportarWord(data: ExportData) {
     new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: data.project.nombre ?? 'Proyecto' })] }),
   );
   const metaParts: string[] = [];
+  if (data.project.numeroCotizacion) metaParts.push(`Cotización #: ${data.project.numeroCotizacion}`);
+  if (data.project.numeroFactura) metaParts.push(`Factura #: ${data.project.numeroFactura}`);
   if (data.project.cliente) metaParts.push(`Cliente: ${data.project.cliente}`);
   if (data.project.ubicacion) metaParts.push(`Ubicación: ${data.project.ubicacion}`);
   metaParts.push(`Categoría: ${data.project.categoriaCable ?? 'Cat6'}`);

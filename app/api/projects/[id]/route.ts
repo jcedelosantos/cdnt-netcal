@@ -6,6 +6,7 @@ import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 import { withRetry } from '@/lib/db-utils';
 import { calcularMateriales, type ConfigProyecto } from '@/lib/calculations';
+import { generarNumeroFactura } from '@/lib/numeracion';
 
 export async function GET(req: Request, { params }: { params: { id: string } }) {
   try {
@@ -16,7 +17,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 
     const project = await withRetry(() => prisma.project.findFirst({
       where: { id, userId },
-      include: { puntos: true, materiales: true },
+      include: { puntos: true, materiales: true, pagos: { orderBy: { fecha: 'asc' } } },
     }));
 
     if (!project) return NextResponse.json({ error: 'Proyecto no encontrado' }, { status: 404 });
@@ -49,8 +50,15 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
         fecha: project?.fecha?.toISOString?.() ?? null,
         createdAt: project?.createdAt?.toISOString?.() ?? null,
         updatedAt: project?.updatedAt?.toISOString?.() ?? null,
+        aprobadoEn: (project as any)?.aprobadoEn?.toISOString?.() ?? null,
+        facturadoEn: (project as any)?.facturadoEn?.toISOString?.() ?? null,
         puntos: project?.puntos ?? [],
         materiales: project?.materiales ?? [],
+        pagos: ((project as any)?.pagos ?? []).map((p: any) => ({
+          ...p,
+          fecha: p?.fecha?.toISOString?.() ?? null,
+          createdAt: p?.createdAt?.toISOString?.() ?? null,
+        })),
       },
       resultado,
     });
@@ -185,6 +193,18 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       data.aprobadoEn = body.aprobado ? new Date() : null;
     }
 
+    // Facturar: genera número de factura y fecha (solo una vez)
+    if (body?.facturar === true) {
+      if (!(existing as any).numeroFactura) {
+        data.numeroFactura = await generarNumeroFactura(userId);
+        data.facturadoEn = new Date();
+      }
+    } else if (body?.facturar === false) {
+      // Revertir facturación
+      data.numeroFactura = null;
+      data.facturadoEn = null;
+    }
+
     if (Object.keys(data).length === 0) {
       return NextResponse.json({ error: 'Nada que actualizar' }, { status: 400 });
     }
@@ -194,6 +214,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       success: true,
       aprobado: project.aprobado,
       aprobadoEn: project.aprobadoEn?.toISOString?.() ?? null,
+      numeroFactura: (project as any).numeroFactura ?? null,
+      facturadoEn: (project as any).facturadoEn?.toISOString?.() ?? null,
     });
   } catch (error: any) {
     console.error('PATCH project error:', error);

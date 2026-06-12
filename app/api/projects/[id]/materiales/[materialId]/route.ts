@@ -18,7 +18,7 @@ export async function DELETE(
     if (!project) return NextResponse.json({ error: 'Proyecto no encontrado' }, { status: 404 });
 
     const material = await prisma.projectMaterial.findFirst({
-      where: { id: params.materialId, projectId: params.id, esPersonalizado: true },
+      where: { id: params.materialId, projectId: params.id },
     });
     if (!material) return NextResponse.json({ error: 'Material no encontrado' }, { status: 404 });
 

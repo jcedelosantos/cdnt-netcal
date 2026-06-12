@@ -15,7 +15,7 @@ import {
   AlertTriangle, CheckCircle, Info, XCircle, ArrowLeft,
   Download, Copy, Trash2, Edit, Camera, DollarSign,
   ToggleLeft, ToggleRight, FileText, FileSpreadsheet, FileDown, FileType2, Save, Clock, Mail,
-  Plus, PackagePlus,
+  Plus, PackagePlus, Receipt, Hash, Wallet, CreditCard,
 } from 'lucide-react';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -80,9 +80,13 @@ export default function ProjectDetailClient({ projectId }: Props) {
     itbis: 18, margenGanancia: 0, costoManoObra: 0,
     costoTransporte: 0, costoConfiguracion: 0, costoCertificacion: 0,
   });
+  const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [showAddMaterial, setShowAddMaterial] = useState(false);
   const [newMaterial, setNewMaterial] = useState({ categoria: 'Adicionales', nombre: '', cantidad: 1, unidad: 'und', precioUnit: 0 });
   const [savingMaterial, setSavingMaterial] = useState(false);
+  const [facturando, setFacturando] = useState(false);
+  const [newPago, setNewPago] = useState({ concepto: '', monto: 0, fecha: new Date().toISOString().slice(0, 10), metodoPago: 'Transferencia', referencia: '' });
+  const [savingPago, setSavingPago] = useState(false);
 
   const fetchProject = useCallback(async () => {
     try {
@@ -105,13 +109,16 @@ export default function ProjectDetailClient({ projectId }: Props) {
         costoConfiguracion: p?.costoConfiguracion ?? 0,
         costoCertificacion: p?.costoCertificacion ?? 0,
       });
-      // Init prices from stored materials
+      // Init prices and quantities from stored materials
       const storedPrices: Record<string, number> = {};
+      const storedQtys: Record<string, number> = {};
       for (const m of (data?.project?.materiales ?? [])) {
-        if (m?.id && (m?.precioUnit ?? 0) > 0) {
-          storedPrices[m.id] = m.precioUnit;
+        if (m?.id) {
+          storedQtys[m.id] = m.cantidad ?? 0;
+          if ((m?.precioUnit ?? 0) > 0) storedPrices[m.id] = m.precioUnit;
         }
       }
+      setQuantities(storedQtys);
       if (Object.keys(storedPrices).length > 0 || p?.incluyeCotizacion) {
         setPrices(storedPrices);
         setShowPrices(true);
@@ -155,11 +162,13 @@ export default function ProjectDetailClient({ projectId }: Props) {
   };
 
   const handleDeleteMaterial = async (materialId: string) => {
-    if (!confirm('¿Eliminar este material adicional?')) return;
+    if (!confirm('¿Eliminar este material?')) return;
     try {
       const res = await fetch(`/api/projects/${projectId}/materiales/${materialId}`, { method: 'DELETE' });
       if (!res.ok) throw new Error();
       toast.success('Material eliminado');
+      setQuantities((prev) => { const n = { ...prev }; delete n[materialId]; return n; });
+      setPrices((prev) => { const n = { ...prev }; delete n[materialId]; return n; });
       fetchProject();
     } catch {
       toast.error('Error al eliminar material');
@@ -182,6 +191,79 @@ export default function ProjectDetailClient({ projectId }: Props) {
     } catch {
       setProject((prev: any) => ({ ...(prev ?? {}), aprobado: !nuevo }));
       toast.error('Error al actualizar estado');
+    }
+  };
+
+  const handleFacturar = async () => {
+    if (project?.numeroFactura) {
+      if (!confirm('Este proyecto ya tiene factura. ¿Deseas anular la factura?')) return;
+      setFacturando(true);
+      try {
+        const res = await fetch(`/api/projects/${projectId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ facturar: false }),
+        });
+        if (!res.ok) throw new Error();
+        toast.success('Factura anulada');
+        fetchProject();
+      } catch {
+        toast.error('Error al anular factura');
+      } finally {
+        setFacturando(false);
+      }
+      return;
+    }
+    setFacturando(true);
+    try {
+      const res = await fetch(`/api/projects/${projectId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ facturar: true }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error();
+      toast.success(`Factura ${d?.numeroFactura ?? ''} generada`);
+      fetchProject();
+    } catch {
+      toast.error('Error al facturar');
+    } finally {
+      setFacturando(false);
+    }
+  };
+
+  const handleAddPago = async () => {
+    if (!newPago.monto || newPago.monto <= 0) { toast.error('El monto debe ser mayor a cero'); return; }
+    setSavingPago(true);
+    try {
+      // El monto se ingresa en la moneda visible; se guarda siempre en RD$
+      const montoDOP = moneda === 'USD' ? newPago.monto * (tasaDolar > 0 ? tasaDolar : 1) : newPago.monto;
+      const res = await fetch(`/api/projects/${projectId}/pagos`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...newPago, monto: montoDOP }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) { toast.error(d?.error ?? 'Error al registrar pago'); return; }
+      toast.success('Pago registrado');
+      setNewPago({ concepto: '', monto: 0, fecha: new Date().toISOString().slice(0, 10), metodoPago: 'Transferencia', referencia: '' });
+      fetchProject();
+    } catch {
+      toast.error('Error al registrar pago');
+    } finally {
+      setSavingPago(false);
+    }
+  };
+
+  const handleDeletePago = async (pagoId: string) => {
+    if (!confirm('¿Eliminar este pago?')) return;
+    try {
+      const res = await fetch(`/api/projects/${projectId}/pagos/${pagoId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error();
+      toast.success('Pago eliminado');
+      fetchProject();
+    } catch {
+      toast.error('Error al eliminar pago');
     }
   };
 
@@ -228,21 +310,21 @@ export default function ProjectDetailClient({ projectId }: Props) {
   };
 
   const buildExportData = (): ExportData => {
-    const materiales = resultado?.materiales ?? [];
     const resumen = resultado?.resumen ?? {};
-    // Agrupar por categoría preservando el orden de aparición
+    // Agrupar desde project.materiales (respeta eliminaciones y cambios de cantidad)
     const orden: string[] = [];
     const grupos: Record<string, any[]> = {};
-    for (const m of materiales) {
-      const cat = m?.categoria ?? 'Otros';
+    for (const m of (project?.materiales ?? [])) {
+      const cat = m?.categoria ?? (m?.esPersonalizado ? 'Adicionales' : 'Otros');
       if (!grupos[cat]) { grupos[cat] = []; orden.push(cat); }
-      const price = prices[findMaterialId(m)] ?? 0;
+      const qty = quantities[m.id] ?? m.cantidad ?? 0;
+      const price = prices[m.id] ?? m.precioUnit ?? 0;
       grupos[cat].push({
         nombre: m?.nombre ?? '',
-        cantidad: m?.cantidad ?? 0,
+        cantidad: qty,
         unidad: m?.unidad ?? 'und',
         precioUnit: price,
-        subtotal: (m?.cantidad ?? 0) * price,
+        subtotal: qty * price,
       });
     }
     const t = showPrices ? calcularTotalesCotizacion() : null;
@@ -256,6 +338,10 @@ export default function ProjectDetailClient({ projectId }: Props) {
             direccion: empresa?.empresaDireccion ?? undefined,
             email: empresa?.empresaEmail ?? undefined,
             logo: empresa?.empresaLogo ?? undefined,
+            banco: empresa?.empresaBanco ?? undefined,
+            cuenta: empresa?.empresaCuenta ?? undefined,
+            tipoCuenta: empresa?.empresaTipoCuenta ?? undefined,
+            nombreCuenta: empresa?.empresaNombreCuenta ?? undefined,
           }
         : undefined,
       project: {
@@ -266,6 +352,8 @@ export default function ProjectDetailClient({ projectId }: Props) {
         fecha: project?.fecha ?? undefined,
         notas: project?.notas ?? undefined,
         aprobado: !!project?.aprobado,
+        numeroCotizacion: project?.numeroCotizacion ?? undefined,
+        numeroFactura: project?.numeroFactura ?? undefined,
       },
       resumen: {
         totalPuntos: resumen?.totalPuntos ?? 0,
@@ -296,11 +384,14 @@ export default function ProjectDetailClient({ projectId }: Props) {
   const handleSavePrices = async () => {
     setSaving(true);
     try {
-      // Construir lista de materiales con id + precio actual
-      const materialesPayload = (resultado?.materiales ?? []).map((m: any) => {
-        const id = findMaterialId(m);
-        return { id, cantidad: m?.cantidad ?? 0, precioUnit: prices[id] ?? 0 };
-      }).filter((m: any) => m.id);
+      // Construir lista de materiales con id + cantidad y precio actuales
+      const materialesPayload = (project?.materiales ?? [])
+        .filter((m: any) => m?.id)
+        .map((m: any) => ({
+          id: m.id,
+          cantidad: quantities[m.id] ?? m.cantidad ?? 0,
+          precioUnit: prices[m.id] ?? m.precioUnit ?? 0,
+        }));
       const res = await fetch(`/api/projects/${projectId}/materiales`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -373,17 +464,11 @@ export default function ProjectDetailClient({ projectId }: Props) {
   };
 
   const calcularTotalesCotizacion = () => {
-    const materiales = resultado?.materiales ?? [];
-    const subtotalCalculados = materiales.reduce((acc: number, m: any) => {
-      const id = findMaterialId(m);
-      const price = prices[id] ?? 0;
-      return acc + (m?.cantidad ?? 0) * price;
+    const subtotalMateriales = (project?.materiales ?? []).reduce((acc: number, m: any) => {
+      const qty = quantities[m.id] ?? m.cantidad ?? 0;
+      const price = prices[m.id] ?? m.precioUnit ?? 0;
+      return acc + qty * price;
     }, 0);
-    // Sumar materiales personalizados (tienen precio propio guardado en DB)
-    const subtotalPersonalizados = (project?.materiales ?? [])
-      .filter((m: any) => m?.esPersonalizado)
-      .reduce((acc: number, m: any) => acc + ((m?.cantidad ?? 0) * (m?.precioUnit ?? 0)), 0);
-    const subtotalMateriales = subtotalCalculados + subtotalPersonalizados;
     const margen = subtotalMateriales * ((cotizacion?.margenGanancia ?? 0) / 100);
     const costosAdicionales = (cotizacion?.costoManoObra ?? 0) + (cotizacion?.costoTransporte ?? 0) + (cotizacion?.costoConfiguracion ?? 0) + (cotizacion?.costoCertificacion ?? 0);
     const subtotalGeneral = subtotalMateriales + margen + costosAdicionales;
@@ -421,16 +506,10 @@ export default function ProjectDetailClient({ projectId }: Props) {
   const alertas = resultado?.alertas ?? [];
   const materiales = resultado?.materiales ?? [];
 
-  // Group by category — incluir materiales personalizados del proyecto
+  // Group by category using stored project.materiales (includes custom + generated)
   const categorias: Record<string, any[]> = {};
-  for (const m of materiales) {
-    const cat = m?.categoria ?? 'Otros';
-    if (!categorias[cat]) categorias[cat] = [];
-    categorias[cat].push({ ...m, esPersonalizado: false });
-  }
   for (const m of (project?.materiales ?? [])) {
-    if (!m?.esPersonalizado) continue;
-    const cat = m?.categoria ?? 'Adicionales';
+    const cat = m?.categoria ?? (m?.esPersonalizado ? 'Adicionales' : 'Otros');
     if (!categorias[cat]) categorias[cat] = [];
     categorias[cat].push(m);
   }
@@ -462,12 +541,39 @@ export default function ProjectDetailClient({ projectId }: Props) {
                 </span>
               )}
             </div>
-            <p className="text-sm text-muted-foreground">
+            <div className="flex items-center gap-2 flex-wrap mt-1.5">
+              {project?.numeroCotizacion && (
+                <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 font-mono">
+                  <Hash className="w-3 h-3" /> {project.numeroCotizacion}
+                </span>
+              )}
+              {project?.numeroFactura && (
+                <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 font-mono">
+                  <Receipt className="w-3 h-3" /> {project.numeroFactura}
+                </span>
+              )}
+              {showPrices && project?.estadoPago && (
+                <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-md ${
+                  project.estadoPago === 'pagado' ? 'bg-green-50 text-green-700' :
+                  project.estadoPago === 'parcial' ? 'bg-amber-50 text-amber-700' :
+                  'bg-muted text-muted-foreground'
+                }`}>
+                  <Wallet className="w-3 h-3" /> {
+                    project.estadoPago === 'pagado' ? 'Pagado' :
+                    project.estadoPago === 'parcial' ? 'Pago parcial' : 'Pago pendiente'
+                  }
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-muted-foreground mt-1">
               {project?.cliente ?? ''}{project?.cliente && project?.ubicacion ? ' • ' : ''}{project?.ubicacion ?? ''}
               {' • '}{project?.categoriaCable ?? 'Cat6'}
             </p>
             {project?.aprobado && project?.aprobadoEn && (
               <p className="text-xs text-green-600 mt-0.5">Aprobado el {fmtFecha(project.aprobadoEn)}</p>
+            )}
+            {project?.numeroFactura && project?.facturadoEn && (
+              <p className="text-xs text-indigo-600 mt-0.5">Facturado el {fmtFecha(project.facturadoEn)}</p>
             )}
           </div>
           <div className="flex gap-2 flex-wrap">
@@ -478,6 +584,15 @@ export default function ProjectDetailClient({ projectId }: Props) {
               className={project?.aprobado ? 'text-green-700 border-green-300 hover:bg-green-50' : 'bg-green-600 hover:bg-green-700'}
             >
               <CheckCircle className="w-4 h-4 mr-1" /> {project?.aprobado ? 'Aprobado' : 'Aprobar'}
+            </Button>
+            <Button
+              variant={project?.numeroFactura ? 'outline' : 'default'}
+              size="sm"
+              onClick={handleFacturar}
+              disabled={facturando}
+              className={project?.numeroFactura ? 'text-indigo-700 border-indigo-300 hover:bg-indigo-50' : 'bg-indigo-600 hover:bg-indigo-700'}
+            >
+              <Receipt className="w-4 h-4 mr-1" /> {facturando ? '...' : project?.numeroFactura ? 'Facturado' : 'Facturar'}
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -659,7 +774,7 @@ export default function ProjectDetailClient({ projectId }: Props) {
                     <TableHeader>
                       <TableRow>
                         <TableHead className="pl-6">Material</TableHead>
-                        <TableHead className="text-center w-24">Cantidad</TableHead>
+                        <TableHead className="text-center w-28">Cantidad</TableHead>
                         <TableHead className="text-center w-20">Unidad</TableHead>
                         {showPrices && (
                           <>
@@ -672,10 +787,10 @@ export default function ProjectDetailClient({ projectId }: Props) {
                     </TableHeader>
                     <TableBody>
                       {(items ?? []).map((m: any, mi: number) => {
-                        const materialId = findMaterialId(m);
                         const isCustom = !!m?.esPersonalizado;
-                        const price = isCustom ? (m?.precioUnit ?? 0) : (prices[materialId] ?? 0);
-                        const subtotal = (m?.cantidad ?? 0) * price;
+                        const qty = quantities[m.id] ?? m?.cantidad ?? 0;
+                        const price = prices[m.id] ?? m?.precioUnit ?? 0;
+                        const subtotal = qty * price;
                         return (
                           <TableRow key={mi} className={isCustom ? 'bg-primary/5' : ''}>
                             <TableCell className="pl-6 font-medium">
@@ -686,29 +801,36 @@ export default function ProjectDetailClient({ projectId }: Props) {
                                 )}
                               </span>
                             </TableCell>
-                            <TableCell className="text-center font-mono">{m?.cantidad ?? 0}</TableCell>
+                            <TableCell className="text-center w-24">
+                              <Input
+                                type="number"
+                                min={0}
+                                step={1}
+                                className="w-20 h-8 text-center mx-auto"
+                                value={qty || ''}
+                                placeholder="0"
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                  const val = parseFloat(e.target.value) || 0;
+                                  setQuantities((prev) => ({ ...prev, [m.id]: val }));
+                                }}
+                              />
+                            </TableCell>
                             <TableCell className="text-center text-muted-foreground">{m?.unidad ?? 'und'}</TableCell>
                             {showPrices && (
                               <>
                                 <TableCell className="text-center">
-                                  {isCustom ? (
-                                    <span className="font-mono text-sm">
-                                      {price > 0 ? `${simbolo} ${price.toLocaleString('es-DO', { minimumFractionDigits: 2 })}` : '-'}
-                                    </span>
-                                  ) : (
-                                    <Input
-                                      type="number"
-                                      min={0}
-                                      step={0.01}
-                                      className="w-28 h-8 text-right mx-auto"
-                                      value={price || ''}
-                                      placeholder="0.00"
-                                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                                        const val = parseFloat(e.target.value) || 0;
-                                        setPrices((prev) => ({ ...(prev ?? {}), [materialId]: val }));
-                                      }}
-                                    />
-                                  )}
+                                  <Input
+                                    type="number"
+                                    min={0}
+                                    step={0.01}
+                                    className="w-28 h-8 text-right mx-auto"
+                                    value={price || ''}
+                                    placeholder="0.00"
+                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                      const val = parseFloat(e.target.value) || 0;
+                                      setPrices((prev) => ({ ...prev, [m.id]: val }));
+                                    }}
+                                  />
                                 </TableCell>
                                 <TableCell className="text-right font-mono pr-6">
                                   {subtotal > 0 ? `${simbolo} ${subtotal.toLocaleString('es-DO', { minimumFractionDigits: 2 })}` : '-'}
@@ -716,12 +838,10 @@ export default function ProjectDetailClient({ projectId }: Props) {
                               </>
                             )}
                             <TableCell className="text-center w-10 pr-4">
-                              {isCustom && (
-                                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:bg-destructive/10"
-                                  onClick={() => handleDeleteMaterial(m.id)}>
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </Button>
-                              )}
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:bg-destructive/10"
+                                onClick={() => handleDeleteMaterial(m.id)}>
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
                             </TableCell>
                           </TableRow>
                         );
@@ -830,6 +950,130 @@ export default function ProjectDetailClient({ projectId }: Props) {
                     <span className="font-mono text-primary">{fmtMonto(totalesCot.total)}</span>
                   </div>
                 </div>
+              )}
+            </CardContent>
+          </Card>
+        </FadeIn>
+      )}
+
+      {/* Pagos anticipados */}
+      {showPrices && totalesCot && (
+        <FadeIn>
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="font-display flex items-center gap-2">
+                <Wallet className="w-5 h-5 text-primary" />
+                Pagos y Anticipos
+              </CardTitle>
+              <CardDescription>Registra los abonos del cliente por fecha y monto</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Resumen financiero */}
+              {(() => {
+                const totalCot = totalesCot.total;
+                const totalPagado = (project?.pagos ?? []).reduce((acc: number, p: any) => acc + (p?.monto ?? 0), 0);
+                const balance = totalCot - totalPagado;
+                const pct = totalCot > 0 ? Math.min(100, Math.round((totalPagado / totalCot) * 100)) : 0;
+                return (
+                  <>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <div className="rounded-lg bg-muted/50 p-3">
+                        <p className="text-lg font-mono font-bold">{fmtMonto(totalCot)}</p>
+                        <p className="text-xs text-muted-foreground">Total cotizado</p>
+                      </div>
+                      <div className="rounded-lg bg-green-50 p-3">
+                        <p className="text-lg font-mono font-bold text-green-700">{fmtMonto(totalPagado)}</p>
+                        <p className="text-xs text-muted-foreground">Pagado</p>
+                      </div>
+                      <div className="rounded-lg bg-amber-50 p-3">
+                        <p className="text-lg font-mono font-bold text-amber-700">{fmtMonto(balance)}</p>
+                        <p className="text-xs text-muted-foreground">Balance pendiente</p>
+                      </div>
+                      <div className="rounded-lg bg-blue-50 p-3">
+                        <p className="text-lg font-mono font-bold text-blue-700">{pct}%</p>
+                        <p className="text-xs text-muted-foreground">Completado</p>
+                      </div>
+                    </div>
+                    <div className="h-2 rounded-full bg-muted overflow-hidden">
+                      <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${pct}%` }} />
+                    </div>
+                  </>
+                );
+              })()}
+
+              {/* Lista de pagos */}
+              {(project?.pagos ?? []).length > 0 && (
+                <div className="border rounded-lg divide-y">
+                  {(project?.pagos ?? []).map((p: any) => (
+                    <div key={p.id} className="flex items-center gap-3 p-3">
+                      <div className="w-9 h-9 rounded-md bg-green-100 flex items-center justify-center shrink-0">
+                        <CheckCircle className="w-4 h-4 text-green-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{p?.concepto ?? 'Pago'}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {fmtFecha(p?.fecha)}
+                          {p?.metodoPago ? ` • ${p.metodoPago}` : ''}
+                          {p?.referencia ? ` • Ref: ${p.referencia}` : ''}
+                        </p>
+                      </div>
+                      <span className="font-mono text-sm font-medium text-green-700">{fmtMonto(p?.monto ?? 0)}</span>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:bg-destructive/10"
+                        onClick={() => handleDeletePago(p.id)}>
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Formulario nuevo pago */}
+              <div className="rounded-lg border border-dashed border-primary/40 bg-primary/5 p-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 items-end">
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Concepto</label>
+                    <Input placeholder="Ej: 50% anticipo" value={newPago.concepto}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewPago((p) => ({ ...p, concepto: e.target.value }))} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Monto ({simbolo})</label>
+                    <Input type="number" min={0} step={0.01} placeholder="0.00" value={newPago.monto || ''}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewPago((p) => ({ ...p, monto: parseFloat(e.target.value) || 0 }))} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Fecha</label>
+                    <Input type="date" value={newPago.fecha}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewPago((p) => ({ ...p, fecha: e.target.value }))} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Método</label>
+                    <select className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm"
+                      value={newPago.metodoPago}
+                      onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setNewPago((p) => ({ ...p, metodoPago: e.target.value }))}>
+                      <option>Transferencia</option>
+                      <option>Efectivo</option>
+                      <option>Cheque</option>
+                      <option>Tarjeta</option>
+                      <option>Depósito</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Referencia</label>
+                    <Input placeholder="Opcional" value={newPago.referencia}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewPago((p) => ({ ...p, referencia: e.target.value }))} />
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <Button size="sm" onClick={handleAddPago} disabled={savingPago}>
+                    <Plus className="w-4 h-4 mr-1" /> {savingPago ? 'Guardando...' : 'Agregar pago'}
+                  </Button>
+                </div>
+              </div>
+
+              {moneda === 'USD' && (
+                <p className="text-xs text-muted-foreground">
+                  Nota: los montos se guardan en RD$. El monto que ingreses se interpreta en {simbolo} y se convierte a RD$ usando la tasa {tasa.toLocaleString('es-DO', { minimumFractionDigits: 2 })}.
+                </p>
               )}
             </CardContent>
           </Card>

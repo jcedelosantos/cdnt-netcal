@@ -23,12 +23,13 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     if (Array.isArray(materiales)) {
       for (const m of materiales) {
         if (m?.id) {
+          const existing = await prisma.projectMaterial.findUnique({ where: { id: m.id } });
+          if (!existing) continue;
+          const qty = m?.cantidad !== undefined ? (parseFloat(String(m.cantidad)) || 0) : existing.cantidad;
+          const precio = m?.precioUnit !== undefined ? (parseFloat(String(m.precioUnit)) || 0) : existing.precioUnit;
           await prisma.projectMaterial.update({
             where: { id: m.id },
-            data: {
-              precioUnit: m?.precioUnit ?? 0,
-              subtotal: (m?.cantidad ?? 0) * (m?.precioUnit ?? 0),
-            },
+            data: { cantidad: qty, precioUnit: precio, subtotal: qty * precio },
           });
         }
       }
