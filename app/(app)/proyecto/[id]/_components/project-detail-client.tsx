@@ -783,7 +783,11 @@ export default function ProjectDetailClient({ projectId }: Props) {
               </Button>
             );
           })()}
-          <Button variant="outline" size="sm" onClick={() => setShowAddMaterial((v) => !v)}>
+          <Button variant="outline" size="sm" onClick={() => {
+            const firstCat = Object.keys(categorias)[0] ?? 'Adicionales';
+            setNewMaterial((p) => ({ ...p, categoria: firstCat }));
+            setShowAddMaterial((v) => !v);
+          }}>
             <PackagePlus className="w-4 h-4 mr-1" /> Agregar material
           </Button>
           <button onClick={() => setShowPrices(!showPrices)} className="flex items-center gap-2 text-sm font-medium text-primary">
@@ -812,8 +816,30 @@ export default function ProjectDetailClient({ projectId }: Props) {
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs text-muted-foreground">Categoría</label>
-                  <Input placeholder="Adicionales" value={newMaterial.categoria}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewMaterial((p) => ({ ...p, categoria: e.target.value }))} />
+                  <select
+                    className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm"
+                    value={Object.keys(categorias).includes(newMaterial.categoria) ? newMaterial.categoria : '__nueva__'}
+                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                      if (e.target.value !== '__nueva__') setNewMaterial((p) => ({ ...p, categoria: e.target.value }));
+                      else setNewMaterial((p) => ({ ...p, categoria: '' }));
+                    }}
+                  >
+                    {Object.keys(categorias).map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                    {!Object.keys(categorias).includes('Adicionales') && (
+                      <option value="Adicionales">Adicionales</option>
+                    )}
+                    <option value="__nueva__">+ Nueva categoría...</option>
+                  </select>
+                  {(!Object.keys(categorias).includes(newMaterial.categoria) || newMaterial.categoria === '') && (
+                    <Input
+                      placeholder="Nombre de la categoría"
+                      value={newMaterial.categoria}
+                      className="mt-1"
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewMaterial((p) => ({ ...p, categoria: e.target.value }))}
+                    />
+                  )}
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs text-muted-foreground">Cantidad</label>
