@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -111,10 +112,14 @@ export default function ProjectsListClient() {
       <FadeIn>
         <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-2xl font-display font-bold tracking-tight flex items-center gap-2">
+            <button
+              onClick={() => router.back()}
+              className="text-2xl font-display font-bold tracking-tight flex items-center gap-2 hover:text-primary transition-colors group"
+            >
+              <ArrowLeft className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
               <FolderOpen className="w-6 h-6 text-primary" />
               Mis Proyectos
-            </h1>
+            </button>
             <p className="text-muted-foreground text-sm">{total} proyecto{total !== 1 ? 's' : ''} guardado{total !== 1 ? 's' : ''}</p>
           </div>
           <Link href="/proyecto/nuevo">
