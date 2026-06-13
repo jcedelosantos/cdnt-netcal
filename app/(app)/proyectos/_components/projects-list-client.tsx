@@ -151,6 +151,9 @@ export default function ProjectsListClient() {
             <option value="">Todos los estados</option>
             <option value="aprobados">Aprobados</option>
             <option value="pendientes">Pendientes</option>
+            <option value="facturados">Facturados</option>
+            <option value="pagados">Pagados</option>
+            <option value="pago_parcial">Pago parcial</option>
           </select>
         </div>
       </FadeIn>

@@ -31,6 +31,9 @@ export async function GET(req: Request) {
     if (cliente) where.cliente = cliente;
     if (estado === 'aprobados') where.aprobado = true;
     else if (estado === 'pendientes') where.aprobado = false;
+    else if (estado === 'facturados') where.numeroFactura = { not: null };
+    else if (estado === 'pagados') where.estadoPago = 'pagado';
+    else if (estado === 'pago_parcial') where.estadoPago = 'parcial';
 
     const [projects, total, clientesRaw] = await withRetry(() => Promise.all([
       prisma.project.findMany({
