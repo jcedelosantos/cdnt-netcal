@@ -87,6 +87,10 @@ export default function ProjectDetailClient({ projectId }: Props) {
   const [savingMaterial, setSavingMaterial] = useState(false);
   const [collapsedCats, setCollapsedCats] = useState<Record<string, boolean>>({});
   const [facturando, setFacturando] = useState(false);
+  const [editandoNcf, setEditandoNcf] = useState(false);
+  const [ncfTipo, setNcfTipo] = useState('B01');
+  const [ncfNumero, setNcfNumero] = useState('');
+  const [savingNcf, setSavingNcf] = useState(false);
   const [newPago, setNewPago] = useState({ concepto: '', monto: 0, fecha: new Date().toISOString().slice(0, 10), metodoPago: 'Transferencia', referencia: '' });
   const [savingPago, setSavingPago] = useState(false);
 
@@ -231,6 +235,27 @@ export default function ProjectDetailClient({ projectId }: Props) {
       toast.error('Error al facturar');
     } finally {
       setFacturando(false);
+    }
+  };
+
+  const handleSaveNcf = async () => {
+    const digits = ncfNumero.replace(/\D/g, '').padStart(8, '0').slice(0, 8);
+    const ncf = `${ncfTipo}-${digits}`;
+    setSavingNcf(true);
+    try {
+      const res = await fetch(`/api/projects/${projectId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ numeroFactura: ncf }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success(`NCF actualizado: ${ncf}`);
+      setProject((prev: any) => ({ ...(prev ?? {}), numeroFactura: ncf }));
+      setEditandoNcf(false);
+    } catch {
+      toast.error('Error al actualizar NCF');
+    } finally {
+      setSavingNcf(false);
     }
   };
 
@@ -554,9 +579,50 @@ export default function ProjectDetailClient({ projectId }: Props) {
                   <Hash className="w-3 h-3" /> {project.numeroCotizacion}
                 </span>
               )}
-              {project?.numeroFactura && (
+              {project?.numeroFactura && !editandoNcf && (
                 <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 font-mono">
                   <Receipt className="w-3 h-3" /> {project.numeroFactura}
+                  <button
+                    className="ml-1 hover:text-indigo-900"
+                    title="Editar NCF"
+                    onClick={() => {
+                      const val = project.numeroFactura ?? '';
+                      // Detect NCF format: B01-00000001
+                      const ncfMatch = val.match(/^(B\d{2})-(\d{8})$/);
+                      setNcfTipo(ncfMatch ? ncfMatch[1] : 'B01');
+                      setNcfNumero(ncfMatch ? ncfMatch[2] : '');
+                      setEditandoNcf(true);
+                    }}
+                  >
+                    <Edit className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              {project?.numeroFactura && editandoNcf && (
+                <span className="inline-flex items-center gap-1 flex-wrap">
+                  <select
+                    value={ncfTipo}
+                    onChange={(e) => setNcfTipo(e.target.value)}
+                    className="text-xs border rounded px-1 py-0.5 font-mono bg-white"
+                  >
+                    <option value="B01">B01 – Crédito Fiscal</option>
+                    <option value="B02">B02 – Consumidor Final</option>
+                    <option value="B14">B14 – Régimen Especial</option>
+                    <option value="B15">B15 – Gubernamental</option>
+                  </select>
+                  <Input
+                    className="h-6 w-28 text-xs font-mono px-1"
+                    placeholder="00000001"
+                    maxLength={8}
+                    value={ncfNumero}
+                    onChange={(e) => setNcfNumero(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                  />
+                  <Button size="sm" className="h-6 text-xs px-2" onClick={handleSaveNcf} disabled={savingNcf}>
+                    {savingNcf ? '...' : 'OK'}
+                  </Button>
+                  <Button size="sm" variant="ghost" className="h-6 text-xs px-1" onClick={() => setEditandoNcf(false)}>
+                    ✕
+                  </Button>
                 </span>
               )}
               {showPrices && project?.estadoPago && (

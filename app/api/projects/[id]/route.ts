@@ -205,6 +205,11 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       data.facturadoEn = null;
     }
 
+    // Edición directa del número de factura (NCF)
+    if (typeof body?.numeroFactura === 'string') {
+      data.numeroFactura = body.numeroFactura;
+    }
+
     if (Object.keys(data).length === 0) {
       return NextResponse.json({ error: 'Nada que actualizar' }, { status: 400 });
     }
