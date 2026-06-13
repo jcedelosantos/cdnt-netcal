@@ -48,9 +48,11 @@ export interface ExportEmpresa {
 export interface ExportData {
   empresa?: ExportEmpresa;
   moneda?: string; // 'DOP' | 'USD'
+  validezCotizacion?: number; // días
   project: {
     nombre: string;
     cliente?: string;
+    clienteRNC?: string;
     ubicacion?: string;
     categoriaCable?: string;
     fecha?: string;
@@ -200,6 +202,7 @@ export async function exportarPDF(data: ExportData) {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   doc.setTextColor(70, 70, 70);
+  if (data.project.clienteRNC) { doc.text(`RNC: ${data.project.clienteRNC}`, mX, y); y += 12; }
   if (data.project.ubicacion) { doc.text(data.project.ubicacion, mX, y); y += 12; }
   if (data.project.categoriaCable) { doc.text(`Categoría cable: ${data.project.categoriaCable}`, mX, y); y += 12; }
 
@@ -225,6 +228,14 @@ export async function exportarPDF(data: ExportData) {
   labelVal('Cotización #', cotNum);
   if (facNum) labelVal('Factura #', facNum);
   labelVal('Fecha', fechaStr);
+  if (!facNum && (data.validezCotizacion ?? 0) > 0) {
+    const validHasta = new Date(quoteDate);
+    validHasta.setDate(validHasta.getDate() + (data.validezCotizacion ?? 30));
+    const vd = String(validHasta.getDate()).padStart(2, '0');
+    const vm = String(validHasta.getMonth() + 1).padStart(2, '0');
+    const vy = validHasta.getFullYear();
+    labelVal('Válida hasta', `${vd}/${vm}/${vy}`);
+  }
 
   y = Math.max(y, rowY) + 8;
 

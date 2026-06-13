@@ -7,7 +7,7 @@ import { prisma } from '@/lib/prisma';
 import { withRetry } from '@/lib/db-utils';
 
 const CAMPOS = ['empresaNombre', 'empresaRNC', 'empresaTelefono', 'empresaDireccion', 'empresaEmail', 'empresaLogo',
-  'empresaBanco', 'empresaCuenta', 'empresaTipoCuenta', 'empresaNombreCuenta'] as const;
+  'empresaBanco', 'empresaCuenta', 'empresaTipoCuenta', 'empresaNombreCuenta', 'validezCotizacion'] as const;
 
 export async function GET() {
   try {
@@ -22,6 +22,7 @@ export async function GET() {
         empresaNombre: true, empresaRNC: true, empresaTelefono: true,
         empresaDireccion: true, empresaEmail: true, empresaLogo: true,
         empresaBanco: true, empresaCuenta: true, empresaTipoCuenta: true, empresaNombreCuenta: true,
+        validezCotizacion: true,
       },
     }));
     return NextResponse.json({ config: user ?? {} });
@@ -50,6 +51,7 @@ export async function PUT(req: Request) {
         empresaNombre: true, empresaRNC: true, empresaTelefono: true,
         empresaDireccion: true, empresaEmail: true, empresaLogo: true,
         empresaBanco: true, empresaCuenta: true, empresaTipoCuenta: true, empresaNombreCuenta: true,
+        validezCotizacion: true,
       },
     }));
     return NextResponse.json({ config: user });

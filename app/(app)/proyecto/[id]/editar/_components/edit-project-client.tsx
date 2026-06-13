@@ -50,6 +50,7 @@ export default function EditProjectClient({ projectId }: { projectId: string }) 
           setForm({
             nombre: p?.nombre ?? '',
             cliente: p?.cliente ?? '',
+            clienteRNC: p?.clienteRNC ?? '',
             ubicacion: p?.ubicacion ?? '',
             modoAvanzado: p?.modoAvanzado ?? false,
             distanciaPromedio: p?.distanciaPromedio ?? 30,
@@ -164,6 +165,10 @@ export default function EditProjectClient({ projectId }: { projectId: string }) 
               <div className="space-y-2">
                 <Label>Cliente</Label>
                 <Input value={form?.cliente ?? ''} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateField('cliente', e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>RNC / Cédula del cliente</Label>
+                <Input placeholder="Ej: 1-01-23456-7" value={form?.clienteRNC ?? ''} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateField('clienteRNC', e.target.value)} />
               </div>
             </div>
             <div className="space-y-2">

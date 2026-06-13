@@ -357,6 +357,7 @@ export default function ProjectDetailClient({ projectId }: Props) {
     const t = showPrices ? calcularTotalesCotizacion() : null;
     return {
       moneda,
+      validezCotizacion: empresa?.validezCotizacion ?? 30,
       empresa: empresa
         ? {
             nombre: empresa?.empresaNombre ?? undefined,
@@ -374,6 +375,7 @@ export default function ProjectDetailClient({ projectId }: Props) {
       project: {
         nombre: project?.nombre ?? 'Proyecto',
         cliente: project?.cliente ?? undefined,
+        clienteRNC: project?.clienteRNC ?? undefined,
         ubicacion: project?.ubicacion ?? undefined,
         categoriaCable: project?.categoriaCable ?? 'Cat6',
         fecha: project?.fecha ?? undefined,

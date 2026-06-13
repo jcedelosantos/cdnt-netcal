@@ -77,7 +77,7 @@ export async function POST(req: Request) {
 
     const body = await req.json();
     const {
-      nombre, cliente, ubicacion, fecha,
+      nombre, cliente, clienteRNC, ubicacion, fecha,
       modoAvanzado, tipoInstalacion, tipoCanalización, categoriaCable,
       distanciaPromedio, reservaCable, reservaMateriales,
       switchPuertos, switchPoE, switchPuertosPoE, gabineteRU,
@@ -96,6 +96,7 @@ export async function POST(req: Request) {
         numeroCotizacion,
         nombre: nombre ?? 'Proyecto sin nombre',
         cliente: cliente ?? null,
+        clienteRNC: clienteRNC ?? null,
         ubicacion: ubicacion ?? null,
         fecha: fecha ? new Date(fecha) : new Date(),
         modoAvanzado: modoAvanzado ?? false,

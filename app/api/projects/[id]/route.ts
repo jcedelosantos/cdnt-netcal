@@ -83,7 +83,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
 
     // Update project
     const updateData: any = {};
-    const fields = ['nombre', 'cliente', 'ubicacion', 'modoAvanzado', 'tipoInstalacion',
+    const fields = ['nombre', 'cliente', 'clienteRNC', 'ubicacion', 'modoAvanzado', 'tipoInstalacion',
       'tipoCanalizaci\u00f3n', 'categoriaCable', 'distanciaPromedio', 'reservaCable',
       'reservaMateriales', 'switchPuertos', 'switchPoE', 'switchPuertosPoE',
       'gabineteRU', 'incluyeUPS', 'incluyeCotizacion', 'margenGanancia',

@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { FadeIn } from '@/components/ui/animate';
-import { Building2, Save, Upload, Trash2, Image as ImageIcon, CreditCard } from 'lucide-react';
+import { Building2, Save, Upload, Trash2, Image as ImageIcon, CreditCard, CalendarClock } from 'lucide-react';
 
 interface EmpresaConfig {
   empresaNombre: string;
@@ -20,12 +20,14 @@ interface EmpresaConfig {
   empresaCuenta: string;
   empresaTipoCuenta: string;
   empresaNombreCuenta: string;
+  validezCotizacion: number;
 }
 
 const VACIO: EmpresaConfig = {
   empresaNombre: '', empresaRNC: '', empresaTelefono: '',
   empresaDireccion: '', empresaEmail: '', empresaLogo: '',
   empresaBanco: '', empresaCuenta: '', empresaTipoCuenta: '', empresaNombreCuenta: '',
+  validezCotizacion: 30,
 };
 
 export default function ConfigClient() {
@@ -49,6 +51,7 @@ export default function ConfigClient() {
           empresaCuenta: data.config.empresaCuenta ?? '',
           empresaTipoCuenta: data.config.empresaTipoCuenta ?? '',
           empresaNombreCuenta: data.config.empresaNombreCuenta ?? '',
+          validezCotizacion: data.config.validezCotizacion ?? 30,
         });
       }
     } catch {
@@ -178,6 +181,35 @@ export default function ConfigClient() {
               <div className="space-y-2 md:col-span-2">
                 <Label>Dirección</Label>
                 <Input placeholder="Calle, sector, ciudad" value={config.empresaDireccion} onChange={(e) => setField('empresaDireccion', e.target.value)} />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </FadeIn>
+
+      <FadeIn>
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle className="font-display text-base flex items-center gap-2">
+              <CalendarClock className="w-4 h-4 text-primary" /> Cotizaciones
+            </CardTitle>
+            <CardDescription>Configuración general para cotizaciones generadas</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Validez de cotización (días)</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={365}
+                  placeholder="30"
+                  value={config.validezCotizacion}
+                  onChange={(e) => setConfig((prev) => ({ ...prev, validezCotizacion: parseInt(e.target.value) || 30 }))}
+                />
+                <p className="text-xs text-muted-foreground">
+                  La cotización mostrará "Válida hasta" sumando estos días a la fecha del proyecto.
+                </p>
               </div>
             </div>
           </CardContent>
