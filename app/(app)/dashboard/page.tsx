@@ -10,20 +10,18 @@ export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
   const userId = (session?.user as any)?.id;
 
-  let stats = { total: 0, recientes: 0, aprobados: 0, pendientes: 0 };
+  let stats = { total: 0, facturados: 0, aprobados: 0, pendientes: 0 };
   let recentProjects: any[] = [];
 
   try {
     const total = await withRetry(() => prisma.project.count({ where: { userId } }));
-    const now = new Date();
-    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    const recientes = await withRetry(() => prisma.project.count({
-      where: { userId, createdAt: { gte: thirtyDaysAgo } },
+    const facturados = await withRetry(() => prisma.project.count({
+      where: { userId, numeroFactura: { not: null } },
     }));
     const aprobados = await withRetry(() => prisma.project.count({
       where: { userId, aprobado: true },
     }));
-    stats = { total, recientes, aprobados, pendientes: total - aprobados };
+    stats = { total, facturados, aprobados, pendientes: total - aprobados };
 
     const projects = await withRetry(() => prisma.project.findMany({
       where: { userId },

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -20,12 +20,13 @@ const fmtFecha = (iso?: string | null) => {
 
 export default function ProjectsListClient() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [projects, setProjects] = useState<any[]>([]);
   const [clientes, setClientes] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [clienteFiltro, setClienteFiltro] = useState('');
-  const [estadoFiltro, setEstadoFiltro] = useState('');
+  const [estadoFiltro, setEstadoFiltro] = useState(searchParams?.get('estado') ?? '');
   const [total, setTotal] = useState(0);
 
   const fetchProjects = useCallback(async () => {

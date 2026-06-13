@@ -5,12 +5,12 @@ import { Button } from '@/components/ui/button';
 import { FadeIn, SlideIn } from '@/components/ui/animate';
 import {
   PlusCircle, FolderOpen, Cable,
-  Calendar, Network, ArrowRight, CheckCircle2, Clock,
+  Receipt, Network, ArrowRight, CheckCircle2, Clock,
 } from 'lucide-react';
 import Link from 'next/link';
 
 interface Props {
-  stats: { total: number; recientes: number; aprobados: number; pendientes: number };
+  stats: { total: number; facturados: number; aprobados: number; pendientes: number };
   recentProjects: any[];
   userName: string;
 }
@@ -31,54 +31,60 @@ export default function DashboardClient({ stats, recentProjects, userName }: Pro
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <SlideIn from="bottom" delay={0.1}>
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center">
-                  <FolderOpen className="w-6 h-6 text-blue-600" />
+          <Link href="/proyectos">
+            <Card className="cursor-pointer hover:shadow-md transition-shadow">
+              <CardContent className="p-6">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center">
+                    <FolderOpen className="w-6 h-6 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-mono font-bold">{stats?.total ?? 0}</p>
+                    <p className="text-sm text-muted-foreground">Proyectos totales</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-2xl font-mono font-bold">{stats?.total ?? 0}</p>
-                  <p className="text-sm text-muted-foreground">Proyectos totales</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </Link>
         </SlideIn>
         <SlideIn from="bottom" delay={0.15}>
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center">
-                  <CheckCircle2 className="w-6 h-6 text-green-600" />
+          <Link href="/proyectos?estado=aprobados">
+            <Card className="cursor-pointer hover:shadow-md transition-shadow">
+              <CardContent className="p-6">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center">
+                    <CheckCircle2 className="w-6 h-6 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-mono font-bold">{stats?.aprobados ?? 0}</p>
+                    <p className="text-sm text-muted-foreground">
+                      Aprobados
+                      {(stats?.pendientes ?? 0) > 0 && (
+                        <span className="text-muted-foreground/70"> · {stats.pendientes} pendiente{stats.pendientes !== 1 ? 's' : ''}</span>
+                      )}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-2xl font-mono font-bold">{stats?.aprobados ?? 0}</p>
-                  <p className="text-sm text-muted-foreground">
-                    Aprobados
-                    {(stats?.pendientes ?? 0) > 0 && (
-                      <span className="text-muted-foreground/70"> · {stats.pendientes} pendiente{stats.pendientes !== 1 ? 's' : ''}</span>
-                    )}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </Link>
         </SlideIn>
         <SlideIn from="bottom" delay={0.2}>
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-teal-100 flex items-center justify-center">
-                  <Calendar className="w-6 h-6 text-teal-600" />
+          <Link href="/proyectos?estado=facturados">
+            <Card className="cursor-pointer hover:shadow-md transition-shadow">
+              <CardContent className="p-6">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-indigo-100 flex items-center justify-center">
+                    <Receipt className="w-6 h-6 text-indigo-600" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-mono font-bold">{stats?.facturados ?? 0}</p>
+                    <p className="text-sm text-muted-foreground">Facturados</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-2xl font-mono font-bold">{stats?.recientes ?? 0}</p>
-                  <p className="text-sm text-muted-foreground">Recientes (30 días)</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </Link>
         </SlideIn>
         <SlideIn from="bottom" delay={0.3}>
           <Link href="/proyecto/nuevo">
