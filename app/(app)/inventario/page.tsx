@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Monitor, Users, FileText, Package, TrendingUp } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FadeIn } from '@/components/ui/animate';
+import QuickTemplates from './_components/quick-templates';
 
 interface Stats {
   equipos: number;
@@ -108,6 +109,10 @@ export default function InventarioDashboard() {
       </FadeIn>
 
       <FadeIn delay={0.2}>
+        <QuickTemplates />
+      </FadeIn>
+
+      <FadeIn delay={0.3}>
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
