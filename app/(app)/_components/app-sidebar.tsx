@@ -7,7 +7,7 @@ import { signOut } from 'next-auth/react';
 import { cn } from '@/lib/utils';
 import {
   Network, LayoutDashboard, PlusCircle, FolderOpen,
-  LogOut, Menu, X, ChevronLeft, User, Settings, FileSpreadsheet, Package, Bell,
+  LogOut, Menu, X, ChevronLeft, User, Settings, FileSpreadsheet, Package, Bell, TrendingUp,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -17,6 +17,7 @@ const navItems = [
   { href: '/proyectos', label: 'Mis Proyectos', icon: FolderOpen },
   { href: '/reportes', label: 'Reportes 607', icon: FileSpreadsheet },
   { href: '/alertas', label: 'Alertas', icon: Bell },
+  { href: '/roi', label: 'ROI Analysis', icon: TrendingUp },
   { href: '/inventario', label: 'Inventario', icon: Package },
   { href: '/configuracion', label: 'Configuración', icon: Settings },
 ];

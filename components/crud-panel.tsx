@@ -1,11 +1,10 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
-import PageHeader from '@/components/page-header';
-import DataTable from '@/components/data-table';
-import Modal from '@/components/modal';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { ZodSchema } from 'zod';
 
 interface CRUDPanelProps {
   title: string;
@@ -125,66 +124,17 @@ export default function CRUDPanel({
     }
   };
 
-  const displayColumns = [
-    ...columns,
-    {
-      key: 'actions',
-      label: 'Acciones',
-      render: (_: any, item: any) => (
-        <div className="flex gap-2">
-          <button
-            onClick={() => handleEdit(item)}
-            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
-            aria-label={`Editar ${item?.nombre ?? 'registro'}`}
-            title="Editar"
-          >
-            <Pencil className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => handleDelete(item?.id)}
-            className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
-            aria-label={`Eliminar ${item?.nombre ?? 'registro'}`}
-            title="Eliminar"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
-        </div>
-      ),
-    },
-  ];
-
   return (
     <div className="space-y-6 max-w-[1200px]">
-      <PageHeader
-        title={title}
-        description={description}
-        icon={Icon}
-        actions={
-          <div className="flex gap-2 flex-wrap">
-            {actions.map((action, i) => (
-              <button
-                key={i}
-                onClick={() => action.onClick(items)}
-                className="flex items-center gap-2 px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm font-medium transition-colors"
-              >
-                <action.icon className="w-4 h-4" /> {action.label}
-              </button>
-            ))}
-            <button
-              onClick={() => {
-                setForm({ ...emptyForm });
-                setEditId(null);
-                setShowForm(true);
-              }}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-700 hover:bg-blue-800 text-white rounded-lg text-sm font-medium transition-colors"
-            >
-              <Plus className="w-4 h-4" /> Agregar
-            </button>
-          </div>
-        }
-      />
+      <div>
+        <div className="flex items-center gap-3 mb-2">
+          <Icon className="w-6 h-6" />
+          <h1 className="text-3xl font-bold">{title}</h1>
+        </div>
+        <p className="text-gray-600">{description}</p>
+      </div>
 
-      <div className="flex gap-3">
+      <div className="flex gap-2">
         <input
           type="text"
           placeholder="Buscar..."
@@ -192,83 +142,150 @@ export default function CRUDPanel({
           onChange={(e) => setSearch(e.target.value)}
           className="px-3 py-2 border border-gray-200 rounded-lg text-sm flex-1"
         />
+        {actions.map((action, i) => (
+          <Button
+            key={i}
+            onClick={() => action.onClick(items)}
+            variant="outline"
+            className="gap-2"
+          >
+            <action.icon className="w-4 h-4" /> {action.label}
+          </Button>
+        ))}
+        <Button
+          onClick={() => {
+            setForm({ ...emptyForm });
+            setEditId(null);
+            setShowForm(true);
+          }}
+          className="gap-2"
+        >
+          <Plus className="w-4 h-4" /> Agregar
+        </Button>
       </div>
 
-      <DataTable columns={displayColumns} data={items} loading={loading} />
-
-      <Modal
-        isOpen={showForm}
-        onClose={() => {
-          setShowForm(false);
-          setForm({ ...emptyForm });
-          setEditId(null);
-        }}
-        title={editId ? 'Editar' : 'Crear nuevo'}
-      >
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {formFields.map((field) => (
-            <div key={field.name} className="space-y-1">
-              <label className="block text-xs font-medium text-gray-700">
-                {field.label} {field.required && <span className="text-red-600">*</span>}
-              </label>
-              {field.type === 'select' ? (
-                <select
-                  value={form?.[field.name] ?? ''}
-                  onChange={(e) => setForm({ ...form, [field.name]: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                  required={field.required}
-                >
-                  <option value="">Seleccionar...</option>
-                  {field.options?.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
+      <Card>
+        <CardContent className="pt-6">
+          {loading ? (
+            <div className="text-center py-8 text-gray-500">Cargando...</div>
+          ) : items.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">Sin registros</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    {columns.map((col) => (
+                      <th key={col.key} className="text-left py-2 px-3 font-medium">
+                        {col.label}
+                      </th>
+                    ))}
+                    <th className="text-left py-2 px-3 font-medium">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((item) => (
+                    <tr key={item?.id} className="border-b hover:bg-gray-50">
+                      {columns.map((col) => (
+                        <td key={`${item?.id}-${col.key}`} className="py-2 px-3">
+                          {col.render ? col.render(item?.[col.key], item) : item?.[col.key]}
+                        </td>
+                      ))}
+                      <td className="py-2 px-3">
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleEdit(item)}
+                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                            title="Editar"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(item?.id)}
+                            className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
+                            title="Eliminar"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
                   ))}
-                </select>
-              ) : field.type === 'textarea' ? (
-                <textarea
-                  value={form?.[field.name] ?? ''}
-                  onChange={(e) => setForm({ ...form, [field.name]: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                  rows={3}
-                />
-              ) : (
-                <input
-                  type={field.type ?? 'text'}
-                  value={form?.[field.name] ?? ''}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      [field.name]: field.type === 'number' ? parseFloat(e.target.value) : e.target.value,
-                    })
-                  }
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                  required={field.required}
-                />
-              )}
+                </tbody>
+              </table>
             </div>
-          ))}
-          <div className="flex gap-2 pt-4">
-            <button
-              type="button"
-              onClick={() => {
-                setShowForm(false);
-                setForm({ ...emptyForm });
-                setEditId(null);
-              }}
-              className="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium hover:bg-gray-50"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              className="flex-1 px-4 py-2 bg-blue-700 text-white rounded-lg text-sm font-medium hover:bg-blue-800"
-            >
-              {editId ? 'Actualizar' : 'Crear'}
-            </button>
-          </div>
-        </form>
-      </Modal>
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog open={showForm} onOpenChange={setShowForm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editId ? 'Editar' : 'Crear nuevo'}</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {formFields.map((field) => (
+              <div key={field.name} className="space-y-1">
+                <label className="block text-xs font-medium text-gray-700">
+                  {field.label} {field.required && <span className="text-red-600">*</span>}
+                </label>
+                {field.type === 'select' ? (
+                  <select
+                    value={form?.[field.name] ?? ''}
+                    onChange={(e) => setForm({ ...form, [field.name]: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                    required={field.required}
+                  >
+                    <option value="">Seleccionar...</option>
+                    {field.options?.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                ) : field.type === 'textarea' ? (
+                  <textarea
+                    value={form?.[field.name] ?? ''}
+                    onChange={(e) => setForm({ ...form, [field.name]: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                    rows={3}
+                  />
+                ) : (
+                  <input
+                    type={field.type ?? 'text'}
+                    value={form?.[field.name] ?? ''}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        [field.name]: field.type === 'number' ? parseFloat(e.target.value) : e.target.value,
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                    required={field.required}
+                  />
+                )}
+              </div>
+            ))}
+            <div className="flex gap-2 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setShowForm(false);
+                  setForm({ ...emptyForm });
+                  setEditId(null);
+                }}
+                className="flex-1"
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" className="flex-1">
+                {editId ? 'Actualizar' : 'Crear'}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
