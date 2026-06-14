@@ -49,7 +49,9 @@ interface PuntoForm {
 interface ProjectForm {
   nombre: string;
   cliente: string;
+  clienteRNC: string;
   ubicacion: string;
+  fecha: string;
   modoAvanzado: boolean;
   distanciaPromedio: number;
   tipoInstalacion: string;
@@ -71,10 +73,14 @@ export default function ProjectFormClient() {
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
 
+  const today = new Date().toISOString().split('T')[0];
+
   const [form, setForm] = useState<ProjectForm>({
     nombre: '',
     cliente: '',
+    clienteRNC: '',
     ubicacion: '',
+    fecha: today,
     modoAvanzado: false,
     distanciaPromedio: 30,
     tipoInstalacion: 'expuesta',
@@ -259,10 +265,23 @@ export default function ProjectFormClient() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>Ubicación</Label>
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input placeholder="Dirección o ubicación del proyecto" value={form?.ubicacion ?? ''} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateField('ubicacion', e.target.value)} className="pl-10" />
+                <Label>RNC / Cédula del cliente</Label>
+                <Input placeholder="Ej: 1-01-23456-7" value={form?.clienteRNC ?? ''} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateField('clienteRNC', e.target.value)} />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Ubicación</Label>
+                  <div className="relative">
+                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input placeholder="Dirección o ubicación del proyecto" value={form?.ubicacion ?? ''} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateField('ubicacion', e.target.value)} className="pl-10" />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Fecha del proyecto</Label>
+                  <div className="relative">
+                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input type="date" value={form?.fecha ?? today} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateField('fecha', e.target.value)} className="pl-10" />
+                  </div>
                 </div>
               </div>
               <div className="space-y-2">

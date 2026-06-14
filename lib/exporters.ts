@@ -56,6 +56,7 @@ export interface ExportData {
     ubicacion?: string;
     categoriaCable?: string;
     fecha?: string;
+    facturadoEn?: string;
     notas?: string;
     aprobado?: boolean;
     numeroCotizacion?: string;
@@ -141,9 +142,14 @@ export async function exportarPDF(data: ExportData) {
 
   // ── Título grande (derecha): "Factura" si está facturado, si no "Cotización"
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(34);
+  doc.setFontSize(17);
   doc.setTextColor(25, 25, 25);
-  doc.text(data.project.numeroFactura ? 'Factura' : 'Cotización', pageW - mX, y + 28, { align: 'right' });
+  const tituloDoc = data.project.numeroFactura?.startsWith('B01-')
+    ? 'Crédito Fiscal'
+    : data.project.numeroFactura
+      ? 'Consumidor Final'
+      : 'Cotización';
+  doc.text(tituloDoc, pageW - mX, y + 28, { align: 'right' });
 
   // ── Info de empresa (columna derecha, debajo del título) ─────────────
   let ry = y + 48;
@@ -207,12 +213,16 @@ export async function exportarPDF(data: ExportData) {
   if (data.project.categoriaCable) { doc.text(`Categoría cable: ${data.project.categoriaCable}`, mX, y); y += 12; }
 
   // Número de cotización / factura + fecha (columna derecha)
-  const quoteDate = data.project.fecha ? new Date(data.project.fecha) : new Date();
+  const facNum = data.project.numeroFactura;
+  // Si hay factura usa la fecha de facturación, si no la fecha del proyecto
+  const rawDate = facNum && data.project.facturadoEn
+    ? new Date(data.project.facturadoEn)
+    : (data.project.fecha ? new Date(data.project.fecha) : new Date());
+  const quoteDate = rawDate;
   const yy = quoteDate.getFullYear();
   const mm = String(quoteDate.getMonth() + 1).padStart(2, '0');
   const dd = String(quoteDate.getDate()).padStart(2, '0');
   const cotNum = data.project.numeroCotizacion || `COT-${yy}${mm}${dd}`;
-  const facNum = data.project.numeroFactura;
   const fechaStr = `${dd}/${mm}/${yy}`;
 
   let rowY = clientStartY;
@@ -338,16 +348,16 @@ export async function exportarPDF(data: ExportData) {
         if (kind === 'total') {
           hook.cell.styles.fontStyle = 'bold';
           hook.cell.styles.fontSize = 12;
-          hook.cell.styles.textColor = limeGreen;
-          hook.cell.styles.fillColor = [248, 248, 248];
+          hook.cell.styles.textColor = brandBlue;
+          hook.cell.styles.fillColor = [240, 246, 252];
         } else if (kind === 'pago') {
           hook.cell.styles.textColor = [22, 130, 90];
           hook.cell.styles.fontSize = 9;
         } else if (kind === 'balance') {
           hook.cell.styles.fontStyle = 'bold';
           hook.cell.styles.fontSize = 11;
-          hook.cell.styles.textColor = brandBlue;
-          hook.cell.styles.fillColor = [240, 246, 252];
+          hook.cell.styles.textColor = [220, 38, 38];
+          hook.cell.styles.fillColor = [255, 245, 245];
         }
       },
     });
@@ -561,7 +571,7 @@ export async function exportarWord(data: ExportData) {
       alignment: AlignmentType.RIGHT,
       children: [new TextRun({
         text: data.project.aprobado ? 'Estado: APROBADO' : 'Estado: PENDIENTE',
-        bold: true, size: 18, color: data.project.aprobado ? '16A34A' : '777777',
+        bold: true, size: 18, color: data.project.aprobado ? '16A34A' : 'DC2626',
       })],
     }),
     new Paragraph({ text: '' }),
@@ -662,4 +672,154 @@ export async function exportarWord(data: ExportData) {
   const doc = new Document({ sections: [{ children }] });
   const blob = await Packer.toBlob(doc);
   saveAs(blob, safeName(data.project.nombre, 'docx'));
+}
+
+/* ------------------------------------------------------------------ */
+/* Reporte 607 DGII                                                    */
+/* ------------------------------------------------------------------ */
+export interface Fila607 {
+  enviado: null;
+  nombreCliente: string;
+  rncCedula: string | null;
+  tipoIdentificacion: string;
+  ncf: string;
+  ncfModificado: null;
+  tipoIngreso: number;
+  fechaComprobante: number;
+  fechaRetencion: null;
+  montoFacturado: number;
+  itbisFacturado: number;
+  itbisRetenido: null;
+  itbisPercibido: null;
+  retencionRenta: null;
+  isrPercibido: null;
+  impuestoSelectivo: null;
+  otrosImpuestos: null;
+  montoPropina: null;
+  efectivo: null;
+  chequeTransferencia: number;
+  tarjetaDebito: null;
+  ventaCredito: null;
+  bonos: null;
+  permuta: null;
+  otrasFormas: null;
+  totalFactura: number;
+  formaPago: string;
+}
+
+export async function exportarReporte607(filas: Fila607[], mes: number, año: number, empresaNombre?: string) {
+  const ExcelJS = (await import('exceljs')).default;
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'RedCalc';
+  wb.created = new Date();
+  const ws = wb.addWorksheet('Hoja1');
+
+  const HEADERS = [
+    'Enviado', 'NOBMRE CLIENTE', 'RNC/Cédula o Pasaporte', 'Tipo Identificación',
+    'Número Comprobante Fiscal', 'Número Comprobante Fiscal Modificado', 'Tipo de Ingreso',
+    'Fecha Comprobante', 'Fecha de Retención', 'Monto Facturado', 'ITBIS Facturado',
+    'ITBIS Retenido por Terceros', 'ITBIS Percibido', 'Retención Renta por Terceros',
+    'ISR Percibido', 'Impuesto Selectivo al Consumo', 'Otros Impuestos/Tasas',
+    'Monto Propina Legal', 'Efectivo', 'Cheque/ Transferencia/ Depósito',
+    'Tarjeta Débito/Crédito', 'Venta a Crédito', 'Bonos o Certificados de Regalo',
+    'Permuta', 'Otras Formas de Ventas', 'TOTAL FACTURA', 'FORMA DE PAGO',
+  ];
+
+  const headerRow = ws.addRow(HEADERS);
+  headerRow.eachCell((cell) => {
+    cell.font = { bold: true, size: 10, color: { argb: 'FFFFFFFF' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1564AF' } };
+    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    cell.border = {
+      bottom: { style: 'thin', color: { argb: 'FFB0C4DE' } },
+    };
+  });
+  headerRow.height = 36;
+
+  // Anchos de columna
+  const widths = [10, 30, 20, 16, 22, 22, 12, 14, 14, 16, 16, 16, 16, 16, 16, 16, 16, 16, 12, 22, 18, 14, 18, 12, 16, 16, 16];
+  widths.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
+
+  const numFmt = '#,##0.00';
+
+  filas.forEach((f, idx) => {
+    const row = ws.addRow([
+      f.enviado,
+      f.nombreCliente,
+      f.rncCedula ? Number(f.rncCedula) : null,
+      f.tipoIdentificacion,
+      f.ncf,
+      f.ncfModificado,
+      f.tipoIngreso,
+      f.fechaComprobante,
+      f.fechaRetencion,
+      f.montoFacturado,
+      f.itbisFacturado,
+      f.itbisRetenido,
+      f.itbisPercibido,
+      f.retencionRenta,
+      f.isrPercibido,
+      f.impuestoSelectivo,
+      f.otrosImpuestos,
+      f.montoPropina,
+      f.efectivo,
+      f.chequeTransferencia,
+      f.tarjetaDebito,
+      f.ventaCredito,
+      f.bonos,
+      f.permuta,
+      f.otrasFormas,
+      f.totalFactura,
+      f.formaPago,
+    ]);
+
+    const bg = idx % 2 === 0 ? 'FFFAFBFF' : 'FFF0F4FF';
+    row.eachCell({ includeEmpty: true }, (cell, col) => {
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+      cell.alignment = { vertical: 'middle' };
+      cell.font = { size: 10 };
+    });
+    // Formato numérico para montos (cols 10, 11, 20, 26)
+    [10, 11, 20, 26].forEach((c) => {
+      const cell = row.getCell(c);
+      if (cell.value !== null) cell.numFmt = numFmt;
+      cell.alignment = { horizontal: 'right', vertical: 'middle' };
+    });
+    // NCF como texto para preservar ceros
+    row.getCell(5).alignment = { horizontal: 'left', vertical: 'middle' };
+    // Fecha como número entero
+    row.getCell(8).alignment = { horizontal: 'center', vertical: 'middle' };
+    // Nombre alineado izquierda
+    row.getCell(2).alignment = { horizontal: 'left', vertical: 'middle' };
+  });
+
+  // Fila de totales
+  if (filas.length > 0) {
+    const totalMonto = filas.reduce((a, f) => a + f.montoFacturado, 0);
+    const totalItbis = filas.reduce((a, f) => a + f.itbisFacturado, 0);
+    const totalTransf = filas.reduce((a, f) => a + f.chequeTransferencia, 0);
+    const totalGen = filas.reduce((a, f) => a + f.totalFactura, 0);
+
+    const totRow = ws.addRow([
+      null, `TOTAL (${filas.length} facturas)`, null, null, null, null, null, null, null,
+      totalMonto, totalItbis, null, null, null, null, null, null, null, null,
+      totalTransf, null, null, null, null, null, totalGen, null,
+    ]);
+    totRow.eachCell({ includeEmpty: true }, (cell) => {
+      cell.font = { bold: true, size: 10, color: { argb: 'FF1564AF' } };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8F0FB' } };
+      cell.alignment = { vertical: 'middle' };
+    });
+    [10, 11, 20, 26].forEach((c) => {
+      const cell = totRow.getCell(c);
+      if (cell.value !== null) { cell.numFmt = numFmt; cell.alignment = { horizontal: 'right', vertical: 'middle' }; }
+    });
+  }
+
+  const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const nombreMes = MESES[(mes - 1)] ?? `Mes${mes}`;
+  const fileName = `607_${empresaNombre ? empresaNombre.replace(/\s+/g, '_') + '_' : ''}${nombreMes}_${año}.xlsx`;
+
+  const buffer = await wb.xlsx.writeBuffer();
+  saveAs(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), fileName);
 }

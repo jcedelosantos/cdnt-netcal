@@ -11,13 +11,15 @@ export async function generarNumeroCotizacion(userId: string): Promise<string> {
 }
 
 export async function generarNumeroFactura(userId: string): Promise<string> {
-  const year = new Date().getFullYear();
-  const prefix = `FAC-${year}-`;
-  const count = await prisma.project.count({
-    where: { userId, numeroFactura: { startsWith: prefix } },
+  // Contar todas las facturas con formato NCF (B01-XXXXXXXX) del usuario
+  const projects = await prisma.project.findMany({
+    where: { userId, numeroFactura: { not: null } },
+    select: { numeroFactura: true },
   });
-  const seq = String(count + 1).padStart(3, '0');
-  return `${prefix}${seq}`;
+  const ncfPattern = /^B\d{2}-\d{8}$/;
+  const count = projects.filter((p) => ncfPattern.test(p.numeroFactura ?? '')).length;
+  const seq = String(count + 1).padStart(8, '0');
+  return `B01-${seq}`;
 }
 
 export function calcularEstadoPago(totalCotizado: number, totalPagado: number): string {

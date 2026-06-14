@@ -102,6 +102,8 @@ model Project {
   costoCertificacion  Float    @default(0)
   itbis               Float    @default(18)
   notas               String?
+  inventoryClientId   String?  // Link a cliente de inventario
+  inventoryClient     InventoryClient? @relation(fields: [inventoryClientId], references: [id], onDelete: SetNull)
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
   user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -110,6 +112,7 @@ model Project {
   pagos               Pago[]
 
   @@index([userId])
+  @@index([inventoryClientId])
 }
 
 model ProjectPoint {
@@ -150,4 +153,184 @@ model ProjectMaterial {
   project         Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId])
+}
+
+// ============================================
+// MÓDULO INVENTARIO (inventory-tic integration)
+// ============================================
+
+model InventoryClient {
+  id            String   @id @default(cuid())
+  userId        String
+  nombre        String
+  contacto      String?
+  telefono      String?
+  email         String?
+  direccion     String?
+  notas         String?
+  activo        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  equipment        InventoryEquipment[]
+  licenses         InventoryLicense[]
+  consumptions     InventoryMonthlyConsumption[]
+  supports         InventoryThirdPartySupport[]
+  projects         InventoryITProject[]
+  redcalcProjects  Project[]  // Link bidireccional con proyectos de RedCalc
+
+  @@index([userId])
+}
+
+model InventoryEquipment {
+  id            String   @id @default(cuid())
+  nombre        String
+  direccionIp   String?
+  fabricante    String?
+  direccionMac  String?
+  comentarios   String?
+  tipoEquipo    String?  @default("otro")
+  numeroSerie   String?
+  fechaCompra   DateTime?
+  garantia      DateTime?
+  estado        String   @default("activo")
+  responsable   String?
+  costoUsd      Float?   @default(0)
+  clientId      String?
+  client        InventoryClient?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([estado])
+  @@index([tipoEquipo])
+  @@index([clientId])
+}
+
+model InventoryLicense {
+  id                String   @id @default(cuid())
+  nombre            String
+  categoria         String?
+  proveedor         String?
+  fechaInicio       DateTime?
+  fechaVencimiento  DateTime?
+  costoAnual        Float    @default(0)
+  responsable       String?
+  estado            String   @default("activa")
+  notas             String?
+  clientId          String?
+  client            InventoryClient?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([estado])
+  @@index([clientId])
+}
+
+model InventoryMonthlyConsumption {
+  id            String   @id @default(cuid())
+  nombre        String
+  categoria     String?
+  costoMensual  Float    @default(0)
+  responsable   String?
+  proveedor     String?
+  notas         String?
+  estado        String   @default("activo")
+  clientId      String?
+  client        InventoryClient?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([clientId])
+}
+
+model InventoryThirdPartySupport {
+  id            String   @id @default(cuid())
+  nombre        String
+  contacto      String?
+  telefono      String?
+  email         String?
+  servicios     String?
+  costoMensual  Float    @default(0)
+  costoAnual    Float    @default(0)
+  contrato      String?
+  estado        String   @default("activo")
+  clientId      String?
+  client        InventoryClient?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([clientId])
+}
+
+model InventoryITProject {
+  id            String   @id @default(cuid())
+  nombre        String
+  descripcion   String?
+  estado        String   @default("en_progreso")
+  responsable   String?
+  presupuesto   Float    @default(0)
+  avance        Int      @default(0)
+  fechaInicio   DateTime?
+  fechaFin      DateTime?
+  notas         String?
+  clientId      String?
+  client        InventoryClient?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([estado])
+  @@index([clientId])
+}
+
+// ============================================
+// ALERTAS Y AUTOMATIZACIÓN
+// ============================================
+
+model Alert {
+  id            String   @id @default(cuid())
+  userId        String
+  tipo          String   // "licencia_vence", "equipo_mantenimiento", "pago_pendiente"
+  titulo        String
+  descripcion   String?
+  severidad     String   @default("info") // "info", "warning", "critical"
+  leido         Boolean  @default(false)
+  referenceId   String?  // ID de la licencia, equipo, proyecto, etc.
+  referenceType String?  // "license", "equipment", "project"
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId])
+  @@index([leido])
+  @@index([severidad])
+}
+
+model AutomationSchedule {
+  id            String   @id @default(cuid())
+  userId        String
+  nombre        String
+  tipo          String   // "reporte_email", "notificacion_vencimiento"
+  activo        Boolean  @default(true)
+  frecuencia    String   @default("weekly") // "daily", "weekly", "monthly"
+  proximaEjecucion DateTime?
+  ultimaEjecucion DateTime?
+  configuracion String?  // JSON con parámetros
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId])
+  @@index([activo])
+}
+
+model AlertLog {
+  id            String   @id @default(cuid())
+  userId        String
+  tipo          String
+  referenceId   String?
+  estado        String   // "enviado", "fallido", "pendiente"
+  mensaje       String?
+  createdAt     DateTime @default(now())
+
+  @@index([userId])
+  @@index([estado])
+  @@index([createdAt])
 }

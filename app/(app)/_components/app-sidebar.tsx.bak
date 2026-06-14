@@ -16,7 +16,6 @@ const navItems = [
   { href: '/proyecto/nuevo', label: 'Nuevo Proyecto', icon: PlusCircle },
   { href: '/proyectos', label: 'Mis Proyectos', icon: FolderOpen },
   { href: '/reportes', label: 'Reportes 607', icon: FileSpreadsheet },
-  { href: '/alertas', label: 'Alertas', icon: Bell },
   { href: '/inventario', label: 'Inventario', icon: Package },
   { href: '/configuracion', label: 'Configuración', icon: Settings },
 ];

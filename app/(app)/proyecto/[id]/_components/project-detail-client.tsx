@@ -379,6 +379,7 @@ export default function ProjectDetailClient({ projectId }: Props) {
         ubicacion: project?.ubicacion ?? undefined,
         categoriaCable: project?.categoriaCable ?? 'Cat6',
         fecha: project?.fecha ?? undefined,
+        facturadoEn: project?.facturadoEn ?? undefined,
         notas: project?.notas ?? undefined,
         aprobado: !!project?.aprobado,
         numeroCotizacion: project?.numeroCotizacion ?? undefined,
