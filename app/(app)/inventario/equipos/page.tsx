@@ -1,10 +1,14 @@
 'use client';
 import { Monitor } from 'lucide-react';
+import { useState } from 'react';
 import CRUDPanel from '@/components/crud-panel';
+import ImportEquipos from '@/app/(app)/inventario/_components/import-equipos';
 import { formatUSD } from '@/lib/utils';
 import { TIPOS_EQUIPO, ESTADOS_EQUIPO } from '@/lib/constants';
 
 export default function InventarioEquiposPage() {
+  const [refreshKey, setRefreshKey] = useState(0);
+
   const emptyForm = {
     nombre: '',
     tipoEquipo: 'otro',
@@ -103,28 +107,41 @@ export default function InventarioEquiposPage() {
   ];
 
   return (
-    <CRUDPanel
-      title="Equipos Tecnológicos"
-      description="Inventario de dispositivos y equipos de red"
-      icon={Monitor}
-      endpoint="/api/inventario/equipos"
-      emptyForm={emptyForm}
-      columns={columns}
-      formFields={formFields}
-      onBeforeSubmit={(form) => ({
-        ...form,
-        costoUsd: parseFloat(form?.costoUsd) || 0,
-        fechaCompra: form?.fechaCompra
-          ? new Date(form.fechaCompra).toISOString()
-          : null,
-        garantia: form?.garantia
-          ? new Date(form.garantia).toISOString()
-          : null,
-        direccionIp: form?.direccionIp || null,
-        direccionMac: form?.direccionMac || null,
-        clientId: form?.clientId || undefined,
-      })}
-      actions={[]}
-    />
+    <div className="space-y-6">
+      <div className="flex justify-between items-start">
+        <div>
+          <h1 className="text-3xl font-bold font-display tracking-tight">Equipos Tecnológicos</h1>
+          <p className="text-gray-500 mt-2">Inventario de dispositivos y equipos de red</p>
+        </div>
+        <div className="flex gap-2">
+          <ImportEquipos onSuccess={() => setRefreshKey(k => k + 1)} />
+        </div>
+      </div>
+
+      <CRUDPanel
+        key={refreshKey}
+        title=""
+        description=""
+        icon={Monitor}
+        endpoint="/api/inventario/equipos"
+        emptyForm={emptyForm}
+        columns={columns}
+        formFields={formFields}
+        onBeforeSubmit={(form) => ({
+          ...form,
+          costoUsd: parseFloat(form?.costoUsd) || 0,
+          fechaCompra: form?.fechaCompra
+            ? new Date(form.fechaCompra).toISOString()
+            : null,
+          garantia: form?.garantia
+            ? new Date(form.garantia).toISOString()
+            : null,
+          direccionIp: form?.direccionIp || null,
+          direccionMac: form?.direccionMac || null,
+          clientId: form?.clientId || undefined,
+        })}
+        actions={[]}
+      />
+    </div>
   );
 }
