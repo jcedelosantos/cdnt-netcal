@@ -9,7 +9,7 @@ interface EquipoRow {
   nombre?: string;
   tipoEquipo?: string;
   fabricante?: string;
-  numeroSerie?: string;
+  numeroSerie?: string; // Serie
   direccionIp?: string;
   direccionMac?: string;
   fechaCompra?: string;
@@ -48,24 +48,36 @@ export async function POST(request: Request) {
     const rows: EquipoRow[] = [];
     const errors: Array<{ row: number; error: string }> = [];
 
+    // Get headers
+    const headerRow = worksheet.getRow(1);
+    const headers: { [key: string]: number } = {};
+    headerRow.eachCell((cell, colNumber) => {
+      if (cell.value) {
+        const header = cell.value.toString().toLowerCase().trim();
+        headers[header] = colNumber;
+      }
+    });
+
     worksheet.eachRow((row, rowNumber) => {
       if (rowNumber === 1) return; // Skip header
 
       const values = row.values as any[];
+
+      // Map columns flexibly based on headers found
       const equipo: EquipoRow = {
-        nombre: values[1]?.toString()?.trim(),
-        tipoEquipo: values[2]?.toString()?.trim() || 'otro',
-        fabricante: values[3]?.toString()?.trim(),
-        numeroSerie: values[4]?.toString()?.trim(),
-        direccionIp: values[5]?.toString()?.trim(),
-        direccionMac: values[6]?.toString()?.trim(),
-        fechaCompra: values[7]?.toString()?.trim(),
-        garantia: values[8]?.toString()?.trim(),
-        estado: values[9]?.toString()?.trim() || 'activo',
-        responsable: values[10]?.toString()?.trim(),
-        costoUsd: values[11] ? parseFloat(values[11]) : 0,
-        comentarios: values[12]?.toString()?.trim(),
-        clientId: values[13]?.toString()?.trim(),
+        nombre: values[headers['nombre']]?.toString()?.trim(),
+        tipoEquipo: values[headers['tipo']]?.toString()?.trim() || values[headers['tipo equipo']]?.toString()?.trim() || 'otro',
+        fabricante: values[headers['fabricante']]?.toString()?.trim(),
+        numeroSerie: values[headers['serie']]?.toString()?.trim() || values[headers['serial']]?.toString()?.trim() || values[headers['sn']]?.toString()?.trim(),
+        direccionIp: values[headers['dirección ip']]?.toString()?.trim() || values[headers['ip']]?.toString()?.trim(),
+        direccionMac: values[headers['dirección mac']]?.toString()?.trim() || values[headers['mac']]?.toString()?.trim(),
+        fechaCompra: values[headers['fecha compra']]?.toString()?.trim(),
+        garantia: values[headers['garantía']]?.toString()?.trim(),
+        estado: values[headers['estado']]?.toString()?.trim() || 'activo',
+        responsable: values[headers['responsable']]?.toString()?.trim(),
+        costoUsd: values[headers['costo']] ? parseFloat(values[headers['costo']]?.toString() || '0') : 0,
+        comentarios: values[headers['comentarios']]?.toString()?.trim(),
+        clientId: values[headers['cliente']]?.toString()?.trim(),
       };
 
       // Validate required fields
