@@ -1,8 +1,9 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Monitor, Users, FileText, Package, TrendingUp } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Monitor, Users, FileText, TrendingUp } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { FadeIn } from '@/components/ui/animate';
 import QuickTemplates from './_components/quick-templates';
 
@@ -48,7 +49,6 @@ export default function InventarioDashboard() {
       label: 'Clientes',
       count: stats.clientes,
       color: 'bg-blue-100 text-blue-600',
-      description: 'Gestión de clientes',
     },
     {
       href: '/inventario/equipos',
@@ -56,7 +56,6 @@ export default function InventarioDashboard() {
       label: 'Equipos',
       count: stats.equipos,
       color: 'bg-purple-100 text-purple-600',
-      description: 'Inventario de dispositivos',
     },
     {
       href: '/inventario/licencias',
@@ -64,7 +63,6 @@ export default function InventarioDashboard() {
       label: 'Licencias',
       count: stats.licencias,
       color: 'bg-green-100 text-green-600',
-      description: 'Software licenses',
     },
     {
       href: '/inventario/consumos',
@@ -72,35 +70,37 @@ export default function InventarioDashboard() {
       label: 'Consumos',
       count: stats.consumos,
       color: 'bg-orange-100 text-orange-600',
-      description: 'Gastos mensuales',
     },
   ];
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-4">
       <FadeIn>
-        <div>
-          <h1 className="text-3xl font-bold font-display tracking-tight">Módulo Inventario</h1>
-          <p className="text-gray-500 mt-2">Gestión integral de equipos, licencias y clientes</p>
+        <div className="flex justify-between items-start">
+          <div>
+            <h1 className="text-2xl font-bold">Inventario TIC</h1>
+            <p className="text-sm text-gray-500 mt-1">Equipos, licencias y servicios</p>
+          </div>
         </div>
       </FadeIn>
 
       <FadeIn delay={0.1}>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <QuickTemplates />
+      </FadeIn>
+
+      <FadeIn delay={0.2}>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {sections.map((section) => (
             <Link key={section.href} href={section.href}>
-              <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
-                <CardHeader className="space-y-2">
-                  <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${section.color}`}>
-                    <section.icon className="w-6 h-6" />
+              <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
+                <CardContent className="p-3 space-y-2">
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${section.color} w-fit`}>
+                    <section.icon className="w-5 h-5" />
                   </div>
-                  <CardTitle className="text-lg">{section.label}</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  <div className="text-3xl font-bold">
-                    {loading ? '-' : section.count}
+                  <div>
+                    <p className="text-xs font-medium text-gray-600">{section.label}</p>
+                    <p className="text-2xl font-bold">{loading ? '-' : section.count}</p>
                   </div>
-                  <p className="text-xs text-gray-500">{section.description}</p>
                 </CardContent>
               </Card>
             </Link>
@@ -108,49 +108,29 @@ export default function InventarioDashboard() {
         </div>
       </FadeIn>
 
-      <FadeIn delay={0.2}>
-        <QuickTemplates />
-      </FadeIn>
-
       <FadeIn delay={0.3}>
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Package className="w-5 h-5" />
-              Accesos rápidos
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Link
-              href="/inventario/clientes"
-              className="p-4 border rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              <div className="font-medium mb-1">➕ Agregar Cliente</div>
-              <p className="text-sm text-gray-500">Crear nuevo cliente</p>
-            </Link>
-            <Link
-              href="/inventario/equipos"
-              className="p-4 border rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              <div className="font-medium mb-1">➕ Registrar Equipo</div>
-              <p className="text-sm text-gray-500">Agregar nuevo dispositivo</p>
-            </Link>
-            <Link
-              href="/inventario/licencias"
-              className="p-4 border rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              <div className="font-medium mb-1">➕ Nueva Licencia</div>
-              <p className="text-sm text-gray-500">Registrar software</p>
-            </Link>
-            <Link
-              href="/inventario/consumos"
-              className="p-4 border rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              <div className="font-medium mb-1">➕ Agregar Consumo</div>
-              <p className="text-sm text-gray-500">Registrar gasto mensual</p>
-            </Link>
-          </CardContent>
-        </Card>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          <Link href="/inventario/clientes">
+            <Button variant="outline" className="w-full justify-start text-xs h-9">
+              ➕ Cliente
+            </Button>
+          </Link>
+          <Link href="/inventario/equipos">
+            <Button variant="outline" className="w-full justify-start text-xs h-9">
+              ➕ Equipo
+            </Button>
+          </Link>
+          <Link href="/inventario/licencias">
+            <Button variant="outline" className="w-full justify-start text-xs h-9">
+              ➕ Licencia
+            </Button>
+          </Link>
+          <Link href="/inventario/consumos">
+            <Button variant="outline" className="w-full justify-start text-xs h-9">
+              ➕ Consumo
+            </Button>
+          </Link>
+        </div>
       </FadeIn>
     </div>
   );
