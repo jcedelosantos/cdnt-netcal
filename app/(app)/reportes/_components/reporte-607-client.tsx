@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { FadeIn } from '@/components/ui/animate';
-import { FileSpreadsheet, Download, Receipt, Calendar } from 'lucide-react';
+import { FileSpreadsheet, Download, Receipt, Calendar, AlertTriangle } from 'lucide-react';
 
 const MESES = [
   'Enero','Febrero','Marzo','Abril','Mayo','Junio',
@@ -52,7 +52,7 @@ export default function Reporte607Client({ empresaNombre }: Props) {
     setLoading(true);
     try {
       const { exportarReporte607 } = await import('@/lib/exporters');
-      await exportarReporte607(preview, previewMes!, previewAño!, empresaNombre);
+      await exportarReporte607(filaActivas, previewMes!, previewAño!, empresaNombre);
       toast.success('Reporte 607 descargado');
     } catch (e: any) {
       toast.error('Error al generar Excel');
@@ -61,9 +61,10 @@ export default function Reporte607Client({ empresaNombre }: Props) {
     }
   };
 
-  const totalMonto = (preview ?? []).reduce((a: number, f: any) => a + (f.montoFacturado ?? 0), 0);
-  const totalItbis = (preview ?? []).reduce((a: number, f: any) => a + (f.itbisFacturado ?? 0), 0);
-  const totalGen = (preview ?? []).reduce((a: number, f: any) => a + (f.totalFactura ?? 0), 0);
+  const filaActivas = (preview ?? []).filter((f: any) => f.estadoPago !== 'anulado');
+  const totalMonto = filaActivas.reduce((a: number, f: any) => a + (f.montoFacturado ?? 0), 0);
+  const totalItbis = filaActivas.reduce((a: number, f: any) => a + (f.itbisFacturado ?? 0), 0);
+  const totalGen = filaActivas.reduce((a: number, f: any) => a + (f.totalFactura ?? 0), 0);
 
   return (
     <div className="p-4 lg:p-8 max-w-6xl mx-auto">
@@ -147,7 +148,13 @@ export default function Reporte607Client({ empresaNombre }: Props) {
                 <Card>
                   <CardContent className="p-4">
                     <p className="text-xs text-muted-foreground">Facturas</p>
-                    <p className="text-2xl font-mono font-bold">{preview.length}</p>
+                    <p className="text-2xl font-mono font-bold">{filaActivas.length}</p>
+                    {preview.length > filaActivas.length && (
+                      <p className="text-xs text-amber-600 flex items-center gap-1 mt-0.5">
+                        <AlertTriangle className="w-3 h-3" />
+                        {preview.length - filaActivas.length} NCF{preview.length - filaActivas.length > 1 ? 's' : ''} anulado{preview.length - filaActivas.length > 1 ? 's' : ''}
+                      </p>
+                    )}
                   </CardContent>
                 </Card>
                 <Card>
@@ -184,22 +191,30 @@ export default function Reporte607Client({ empresaNombre }: Props) {
                       {preview.map((f: any, i: number) => {
                         const fc = String(f.fechaComprobante);
                         const fechaStr = `${fc.slice(6,8)}/${fc.slice(4,6)}/${fc.slice(0,4)}`;
+                        const isAnulado = f.estadoPago === 'anulado';
                         return (
-                          <tr key={i} className="border-b hover:bg-muted/30">
-                            <td className="px-4 py-2.5 font-medium">{f.nombreCliente || '—'}</td>
-                            <td className="px-3 py-2.5 text-muted-foreground">{f.rncCedula || '—'}</td>
-                            <td className="px-3 py-2.5 font-mono text-blue-700">{f.ncf}</td>
+                          <tr key={i} className={`border-b ${isAnulado ? 'bg-amber-50 hover:bg-amber-100' : 'hover:bg-muted/30'}`}>
+                            <td className="px-4 py-2.5 font-medium">
+                              {isAnulado ? (
+                                <span className="flex items-center gap-1.5 text-amber-700">
+                                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                                  NCF no emitido — salto en numeración
+                                </span>
+                              ) : (f.nombreCliente || '—')}
+                            </td>
+                            <td className="px-3 py-2.5 text-muted-foreground">{isAnulado ? '—' : (f.rncCedula || '—')}</td>
+                            <td className={`px-3 py-2.5 font-mono ${isAnulado ? 'text-amber-600' : 'text-blue-700'}`}>{f.ncf}</td>
                             <td className="px-3 py-2.5 text-center text-muted-foreground">{fechaStr}</td>
-                            <td className="px-3 py-2.5 text-right">{fmtMonto(f.montoFacturado)}</td>
-                            <td className="px-3 py-2.5 text-right text-muted-foreground">{fmtMonto(f.itbisFacturado)}</td>
-                            <td className="px-4 py-2.5 text-right font-medium">{fmtMonto(f.totalFactura)}</td>
+                            <td className="px-3 py-2.5 text-right">{isAnulado ? '—' : fmtMonto(f.montoFacturado)}</td>
+                            <td className="px-3 py-2.5 text-right text-muted-foreground">{isAnulado ? '—' : fmtMonto(f.itbisFacturado)}</td>
+                            <td className="px-4 py-2.5 text-right font-medium">{isAnulado ? '—' : fmtMonto(f.totalFactura)}</td>
                           </tr>
                         );
                       })}
                     </tbody>
                     <tfoot>
                       <tr className="bg-blue-50 font-bold">
-                        <td colSpan={4} className="px-4 py-2.5 text-blue-800">TOTAL ({preview.length})</td>
+                        <td colSpan={4} className="px-4 py-2.5 text-blue-800">TOTAL ({filaActivas.length})</td>
                         <td className="px-3 py-2.5 text-right text-blue-800">{fmtMonto(totalMonto)}</td>
                         <td className="px-3 py-2.5 text-right text-blue-800">{fmtMonto(totalItbis)}</td>
                         <td className="px-4 py-2.5 text-right text-blue-800">{fmtMonto(totalGen)}</td>

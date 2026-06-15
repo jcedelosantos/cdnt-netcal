@@ -57,6 +57,7 @@ export async function GET(req: Request) {
         d.getDate();
 
       return {
+        estadoPago: p.estadoPago ?? 'pendiente',
         enviado: null,
         nombreCliente: p.cliente ?? '',
         rncCedula: p.clienteRNC ? p.clienteRNC.replace(/\D/g, '') : null,
