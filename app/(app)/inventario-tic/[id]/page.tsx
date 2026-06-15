@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
@@ -172,11 +172,21 @@ export default function InventarioDetailPage() {
                 {categorias.reduce((sum, c) => sum + c.articulos.length, 0)}
               </p>
             </div>
-            <div>
-              <p className="text-xs text-gray-600">Gasto Anual</p>
-              <p className="text-2xl font-bold text-green-600">
-                ${inventario.gastoAnual.toLocaleString()}
-              </p>
+            <div className="flex flex-col justify-between">
+              <div>
+                <p className="text-xs text-gray-600">Gasto Anual</p>
+                <p className="text-2xl font-bold text-green-600">
+                  ${inventario.gastoAnual.toLocaleString()}
+                </p>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => router.push(`/inventario-tic/${inventarioId}/reporte`)}
+                className="gap-2 w-fit mt-2"
+              >
+                <FileText className="w-4 h-4" />
+                Ver Reporte
+              </Button>
             </div>
           </div>
         </CardContent>
