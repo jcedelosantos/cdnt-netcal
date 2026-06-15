@@ -64,6 +64,7 @@ export default function InventarioDetailPage() {
   const [savingArticulo, setSavingArticulo] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [editingCell, setEditingCell] = useState<{ artId: string; field: 'cantidad' | 'precioUnitario'; value: string } | null>(null);
+  const [editingNombre, setEditingNombre] = useState<{ artId: string; catId: string; value: string } | null>(null);
 
   // Edit modal state
   const [showEdit, setShowEdit] = useState(false);
@@ -292,6 +293,43 @@ export default function InventarioDetailPage() {
     } finally {
       setSavingArticulo(false);
     }
+  };
+
+  const handleNombreSave = async (artId: string, catId: string, value: string) => {
+    const trimmed = value.trim();
+    setEditingNombre(null);
+    if (!trimmed) return;
+    setCategorias(prev => prev.map(cat =>
+      cat.id !== catId ? cat : {
+        ...cat,
+        articulos: cat.articulos.map(a => a.id !== artId ? a : { ...a, nombre: trimmed }),
+      }
+    ));
+    try {
+      const res = await fetch(`/api/inventario-tic/${inventarioId}/articulos`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ articuloId: artId, nombre: trimmed }),
+      });
+      if (!res.ok) { toast.error('Error al guardar nombre'); fetchData(); }
+    } catch { toast.error('Error al guardar nombre'); fetchData(); }
+  };
+
+  const handleDeleteCategory = async (categoriaId: string) => {
+    try {
+      const res = await fetch(`/api/inventario-tic/${inventarioId}/categorias`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ categoriaId }),
+      });
+      if (res.ok) {
+        setCategorias(prev => prev.filter(c => c.id !== categoriaId));
+        toast.success('Categoría eliminada');
+      } else {
+        const err = await res.json();
+        toast.error(err.error || 'Error al eliminar');
+      }
+    } catch { toast.error('Error al eliminar categoría'); }
   };
 
   const handleDeleteArticle = async (articuloId: string, categoriaId: string) => {
@@ -589,27 +627,38 @@ export default function InventarioDetailPage() {
 
             return (
               <Card key={categoria.id}>
-                <button
-                  className="w-full text-left px-6 py-4 hover:bg-gray-50 transition-colors"
-                  onClick={() => setExpandedCategory(isExpanded ? null : categoria.id)}
-                >
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-2">
-                      {isExpanded ? (
-                        <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                      ) : (
-                        <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                      )}
-                      <div>
-                        <p className="font-semibold text-base">{categoria.nombre}</p>
-                        <p className="text-xs text-gray-500 mt-0.5">{articulos.length} artículos</p>
+                <div className="flex items-center">
+                  <button
+                    className="flex-1 text-left px-6 py-4 hover:bg-gray-50 transition-colors"
+                    onClick={() => setExpandedCategory(isExpanded ? null : categoria.id)}
+                  >
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-2">
+                        {isExpanded ? (
+                          <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                        ) : (
+                          <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                        )}
+                        <div>
+                          <p className="font-semibold text-base">{categoria.nombre}</p>
+                          <p className="text-xs text-gray-500 mt-0.5">{articulos.length} artículos</p>
+                        </div>
                       </div>
+                      <p className="text-sm font-semibold text-green-700 mr-2">
+                        ${(categoria.gastoTotal || 0).toLocaleString()}
+                      </p>
                     </div>
-                    <p className="text-sm font-semibold text-green-700">
-                      ${(categoria.gastoTotal || 0).toLocaleString()}
-                    </p>
-                  </div>
-                </button>
+                  </button>
+                  {articulos.length === 0 && (
+                    <button
+                      className="px-3 py-4 text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                      title="Eliminar categoría vacía"
+                      onClick={(e) => { e.stopPropagation(); handleDeleteCategory(categoria.id); }}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
 
                 {isExpanded && (
                   <CardContent className="border-t pt-4 space-y-3">
@@ -634,7 +683,26 @@ export default function InventarioDetailPage() {
                             className="grid grid-cols-[1fr_70px_90px_80px_32px] gap-2 items-center bg-gray-50 hover:bg-gray-100 rounded px-2 py-1.5 text-sm"
                           >
                             <div>
-                              <p className="font-medium truncate">{art.nombre}</p>
+                              {editingNombre?.artId === art.id ? (
+                                <input
+                                  type="text"
+                                  autoFocus
+                                  className="w-full border rounded px-1 py-0.5 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-blue-400"
+                                  value={editingNombre.value}
+                                  onChange={e => setEditingNombre(n => n && { ...n, value: e.target.value })}
+                                  onBlur={e => handleNombreSave(art.id, categoria.id, e.target.value)}
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                                    if (e.key === 'Escape') setEditingNombre(null);
+                                  }}
+                                />
+                              ) : (
+                                <p
+                                  className="font-medium truncate cursor-pointer hover:text-blue-600 hover:underline"
+                                  title="Clic para editar nombre"
+                                  onClick={() => setEditingNombre({ artId: art.id, catId: categoria.id, value: art.nombre })}
+                                >{art.nombre}</p>
+                              )}
                               {art.proveedor && (
                                 <p className="text-xs text-gray-400">{art.proveedor}</p>
                               )}

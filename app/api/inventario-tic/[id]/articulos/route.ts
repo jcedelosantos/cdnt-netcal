@@ -142,7 +142,7 @@ export async function PUT(
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   try {
-    const { articuloId, cantidad, precioUnitario } = await request.json();
+    const { articuloId, cantidad, precioUnitario, nombre } = await request.json();
 
     const articulo = await prisma.ticArticle.findUnique({
       where: { id: articuloId },
@@ -153,13 +153,14 @@ export async function PUT(
       return NextResponse.json({ error: 'Artículo no encontrado' }, { status: 404 });
     }
 
-    const qty = parseFloat(cantidad) || articulo.cantidad;
-    const price = parseFloat(precioUnitario) || articulo.precioUnitario;
+    const qty = cantidad !== undefined ? parseFloat(cantidad) : articulo.cantidad;
+    const price = precioUnitario !== undefined ? parseFloat(precioUnitario) : articulo.precioUnitario;
     const subtotal = qty * price;
 
     const updated = await prisma.ticArticle.update({
       where: { id: articuloId },
       data: {
+        ...(nombre !== undefined && nombre.trim() ? { nombre: nombre.trim() } : {}),
         cantidad: qty,
         precioUnitario: price,
         subtotal,
