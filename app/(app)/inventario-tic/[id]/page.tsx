@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { ArrowLeft, Plus, Trash2, FileText, ChevronDown, ChevronRight, Pencil, X, Check, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, FileText, ChevronDown, ChevronRight, Pencil, X, Check, RefreshCw, AlertTriangle, CalendarClock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
@@ -44,9 +44,19 @@ interface NuevoArticulo {
   cantidad: string;
   precioUnitario: string;
   proveedor: string;
+  fechaVencimiento: string;
 }
 
-const ARTICULO_VACIO: NuevoArticulo = { nombre: '', cantidad: '1', precioUnitario: '0', proveedor: '' };
+const ARTICULO_VACIO: NuevoArticulo = { nombre: '', cantidad: '1', precioUnitario: '0', proveedor: '', fechaVencimiento: '' };
+
+function fechaVencimientoInfo(fecha: string | undefined) {
+  if (!fecha) return null;
+  const dias = Math.ceil((new Date(fecha).getTime() - Date.now()) / 86400000);
+  if (dias < 0) return { label: `Vencida hace ${Math.abs(dias)}d`, color: 'text-red-600', icon: 'critical' };
+  if (dias <= 7) return { label: `Vence en ${dias}d`, color: 'text-red-500', icon: 'critical' };
+  if (dias <= 30) return { label: `Vence en ${dias}d`, color: 'text-amber-600', icon: 'warning' };
+  return { label: new Date(fecha).toLocaleDateString('es-DO', { day: '2-digit', month: 'short', year: 'numeric' }), color: 'text-gray-400', icon: 'ok' };
+}
 
 export default function InventarioDetailPage() {
   const router = useRouter();
@@ -65,6 +75,7 @@ export default function InventarioDetailPage() {
   const [syncing, setSyncing] = useState(false);
   const [editingCell, setEditingCell] = useState<{ artId: string; field: 'cantidad' | 'precioUnitario'; value: string } | null>(null);
   const [editingNombre, setEditingNombre] = useState<{ artId: string; catId: string; value: string } | null>(null);
+  const [editingFecha, setEditingFecha] = useState<{ artId: string; catId: string; value: string } | null>(null);
 
   // Edit modal state
   const [showEdit, setShowEdit] = useState(false);
@@ -269,6 +280,7 @@ export default function InventarioDetailPage() {
           cantidad: Number(nuevoArticulo.cantidad) || 1,
           precioUnitario: Number(nuevoArticulo.precioUnitario) || 0,
           proveedor: nuevoArticulo.proveedor || null,
+          fechaVencimiento: nuevoArticulo.fechaVencimiento || null,
         }),
       });
       if (res.ok) {
@@ -293,6 +305,25 @@ export default function InventarioDetailPage() {
     } finally {
       setSavingArticulo(false);
     }
+  };
+
+  const handleFechaSave = async (artId: string, catId: string, value: string) => {
+    setEditingFecha(null);
+    const isoDate = value || null;
+    setCategorias(prev => prev.map(cat =>
+      cat.id !== catId ? cat : {
+        ...cat,
+        articulos: cat.articulos.map(a => a.id !== artId ? a : { ...a, fechaVencimiento: isoDate ?? undefined }),
+      }
+    ));
+    try {
+      const res = await fetch(`/api/inventario-tic/${inventarioId}/articulos`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ articuloId: artId, fechaVencimiento: isoDate }),
+      });
+      if (!res.ok) { toast.error('Error al guardar fecha'); fetchData(); }
+    } catch { toast.error('Error al guardar fecha'); fetchData(); }
   };
 
   const handleNombreSave = async (artId: string, catId: string, value: string) => {
@@ -706,6 +737,40 @@ export default function InventarioDetailPage() {
                               {art.proveedor && (
                                 <p className="text-xs text-gray-400">{art.proveedor}</p>
                               )}
+                              {/* Fecha de vencimiento */}
+                              {editingFecha?.artId === art.id ? (
+                                <input
+                                  type="date"
+                                  autoFocus
+                                  className="mt-0.5 border rounded px-1 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
+                                  value={editingFecha.value}
+                                  onChange={e => setEditingFecha(f => f && { ...f, value: e.target.value })}
+                                  onBlur={e => handleFechaSave(art.id, categoria.id, e.target.value)}
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                                    if (e.key === 'Escape') setEditingFecha(null);
+                                  }}
+                                />
+                              ) : (() => {
+                                const info = fechaVencimientoInfo(art.fechaVencimiento);
+                                return (
+                                  <button
+                                    className={`flex items-center gap-1 text-xs mt-0.5 ${info ? info.color : 'text-gray-300 hover:text-blue-500'}`}
+                                    title="Clic para editar fecha de vencimiento"
+                                    onClick={() => setEditingFecha({ artId: art.id, catId: categoria.id, value: art.fechaVencimiento ? art.fechaVencimiento.split('T')[0] : '' })}
+                                  >
+                                    {info ? (
+                                      <>
+                                        {info.icon !== 'ok' && <AlertTriangle className="w-3 h-3 shrink-0" />}
+                                        {info.icon === 'ok' && <CalendarClock className="w-3 h-3 shrink-0" />}
+                                        {info.label}
+                                      </>
+                                    ) : (
+                                      <><CalendarClock className="w-3 h-3" /> Agregar vencimiento</>
+                                    )}
+                                  </button>
+                                );
+                              })()}
                             </div>
 
                             {/* Cantidad editable */}
@@ -777,7 +842,7 @@ export default function InventarioDetailPage() {
                           className="w-full px-2 py-1.5 border rounded text-sm"
                           autoFocus
                         />
-                        <div className="grid grid-cols-3 gap-2">
+                        <div className="grid grid-cols-2 gap-2">
                           <div>
                             <label className="text-xs text-gray-500">Cantidad</label>
                             <input
@@ -806,6 +871,15 @@ export default function InventarioDetailPage() {
                               placeholder="Opcional"
                               value={nuevoArticulo.proveedor}
                               onChange={(e) => setNuevoArticulo(prev => ({ ...prev, proveedor: e.target.value }))}
+                              className="w-full px-2 py-1.5 border rounded text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs text-gray-500">Fecha de vencimiento</label>
+                            <input
+                              type="date"
+                              value={nuevoArticulo.fechaVencimiento}
+                              onChange={(e) => setNuevoArticulo(prev => ({ ...prev, fechaVencimiento: e.target.value }))}
                               className="w-full px-2 py-1.5 border rounded text-sm"
                             />
                           </div>

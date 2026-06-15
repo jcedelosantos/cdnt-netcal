@@ -189,18 +189,78 @@ export async function generatePaymentAlerts(userId: string) {
 }
 
 /**
+ * Genera alertas para artículos TIC con fecha de vencimiento próxima
+ */
+export async function generateTicLicenseAlerts(userId: string, config = defaultConfig) {
+  try {
+    const articulos = await prisma.ticArticle.findMany({
+      where: {
+        fechaVencimiento: { not: null },
+        categoria: { inventario: { userId } },
+      },
+      include: {
+        categoria: { include: { inventario: { select: { nombre: true } } } },
+      },
+    });
+
+    const alerts: any[] = [];
+
+    for (const art of articulos) {
+      if (!art.fechaVencimiento) continue;
+      const diasParaVencer = differenceInDays(art.fechaVencimiento, new Date());
+
+      if (diasParaVencer <= 0) {
+        alerts.push({
+          userId,
+          tipo: 'tic_licencia_vence',
+          titulo: `Licencia vencida: ${art.nombre}`,
+          descripcion: `${art.nombre} (${art.categoria.inventario.nombre}) venció el ${art.fechaVencimiento.toLocaleDateString('es-DO')}`,
+          severidad: 'critical',
+          referenceId: art.id,
+          referenceType: 'tic_article',
+        });
+      } else if (diasParaVencer <= config.diasAntesDelVencimiento) {
+        alerts.push({
+          userId,
+          tipo: 'tic_licencia_vence',
+          titulo: `Licencia próxima a vencer: ${art.nombre}`,
+          descripcion: `${art.nombre} (${art.categoria.inventario.nombre}) vence en ${diasParaVencer} días — ${art.fechaVencimiento.toLocaleDateString('es-DO')}`,
+          severidad: diasParaVencer <= 7 ? 'critical' : 'warning',
+          referenceId: art.id,
+          referenceType: 'tic_article',
+        });
+      }
+    }
+
+    for (const alert of alerts) {
+      const existing = await prisma.alert.findFirst({
+        where: { userId: alert.userId, tipo: alert.tipo, referenceId: alert.referenceId, leido: false },
+      });
+      if (!existing) await prisma.alert.create({ data: alert });
+    }
+
+    return alerts.length;
+  } catch (error) {
+    console.error('Error generating TIC license alerts:', error);
+    return 0;
+  }
+}
+
+/**
  * Genera todas las alertas para un usuario
  */
 export async function generateAllAlerts(userId: string, config = defaultConfig) {
   const licenseAlerts = await generateLicenseAlerts(userId, config);
   const maintenanceAlerts = await generateMaintenanceAlerts(userId, config);
   const paymentAlerts = await generatePaymentAlerts(userId);
+  const ticLicenseAlerts = await generateTicLicenseAlerts(userId, config);
 
   return {
     licenseAlerts,
     maintenanceAlerts,
     paymentAlerts,
-    total: licenseAlerts + maintenanceAlerts + paymentAlerts,
+    ticLicenseAlerts,
+    total: licenseAlerts + maintenanceAlerts + paymentAlerts + ticLicenseAlerts,
   };
 }
 
