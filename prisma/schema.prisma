@@ -294,6 +294,7 @@ model TicInventario {
   nombre        String   // ej: "Inventario 2024 - Reverse"
   descripcion   String?
   estado        String   @default("borrador") // "borrador", "completado", "archivado"
+  fecha         DateTime?
   gastoAnual    Float    @default(0) // Total anual calculado
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -330,6 +331,7 @@ model TicArticle {
   subtotal      Float    @default(0) // cantidad × precioUnitario
   fechaVencimiento DateTime?
   proveedor     String?
+  responsable   String?
   notas         String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt

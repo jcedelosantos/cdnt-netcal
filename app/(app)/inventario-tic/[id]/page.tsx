@@ -14,6 +14,7 @@ interface Articulo {
   precioUnitario: number;
   subtotal: number;
   proveedor?: string;
+  responsable?: string;
   fechaVencimiento?: string;
 }
 
@@ -76,6 +77,7 @@ export default function InventarioDetailPage() {
   const [editingCell, setEditingCell] = useState<{ artId: string; field: 'cantidad' | 'precioUnitario'; value: string } | null>(null);
   const [editingNombre, setEditingNombre] = useState<{ artId: string; catId: string; value: string } | null>(null);
   const [editingFecha, setEditingFecha] = useState<{ artId: string; catId: string; value: string } | null>(null);
+  const [editingResponsable, setEditingResponsable] = useState<{ artId: string; catId: string; value: string } | null>(null);
 
   // Edit modal state
   const [showEdit, setShowEdit] = useState(false);
@@ -305,6 +307,25 @@ export default function InventarioDetailPage() {
     } finally {
       setSavingArticulo(false);
     }
+  };
+
+  const handleResponsableSave = async (artId: string, catId: string, value: string) => {
+    const trimmed = value.trim();
+    setEditingResponsable(null);
+    setCategorias(prev => prev.map(cat =>
+      cat.id !== catId ? cat : {
+        ...cat,
+        articulos: cat.articulos.map(a => a.id !== artId ? a : { ...a, responsable: trimmed || undefined }),
+      }
+    ));
+    try {
+      const res = await fetch(`/api/inventario-tic/${inventarioId}/articulos`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ articuloId: artId, responsable: trimmed || null }),
+      });
+      if (!res.ok) { toast.error('Error al guardar responsable'); fetchData(); }
+    } catch { toast.error('Error al guardar responsable'); fetchData(); }
   };
 
   const handleFechaSave = async (artId: string, catId: string, value: string) => {
@@ -736,6 +757,31 @@ export default function InventarioDetailPage() {
                               )}
                               {art.proveedor && (
                                 <p className="text-xs text-gray-400">{art.proveedor}</p>
+                              )}
+                              {/* Responsable */}
+                              {editingResponsable?.artId === art.id ? (
+                                <input
+                                  type="text"
+                                  autoFocus
+                                  placeholder="Responsable..."
+                                  className="mt-0.5 w-full border rounded px-1 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
+                                  value={editingResponsable.value}
+                                  onChange={e => setEditingResponsable(r => r && { ...r, value: e.target.value })}
+                                  onBlur={e => handleResponsableSave(art.id, categoria.id, e.target.value)}
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                                    if (e.key === 'Escape') setEditingResponsable(null);
+                                  }}
+                                />
+                              ) : (
+                                <button
+                                  className={`flex items-center gap-1 text-xs mt-0.5 ${art.responsable ? 'text-gray-500' : 'text-gray-300 hover:text-blue-500'}`}
+                                  title="Clic para editar responsable"
+                                  onClick={() => setEditingResponsable({ artId: art.id, catId: categoria.id, value: art.responsable ?? '' })}
+                                >
+                                  <span className="text-gray-300">👤</span>
+                                  {art.responsable ?? 'Agregar responsable'}
+                                </button>
                               )}
                               {/* Fecha de vencimiento */}
                               {editingFecha?.artId === art.id ? (

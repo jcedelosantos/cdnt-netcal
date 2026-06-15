@@ -142,7 +142,7 @@ export async function PUT(
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   try {
-    const { articuloId, cantidad, precioUnitario, nombre, fechaVencimiento } = await request.json();
+    const { articuloId, cantidad, precioUnitario, nombre, fechaVencimiento, responsable } = await request.json();
 
     const articulo = await prisma.ticArticle.findUnique({
       where: { id: articuloId },
@@ -162,6 +162,7 @@ export async function PUT(
       data: {
         ...(nombre !== undefined && nombre.trim() ? { nombre: nombre.trim() } : {}),
         ...(fechaVencimiento !== undefined ? { fechaVencimiento: fechaVencimiento ? new Date(fechaVencimiento) : null } : {}),
+        ...(responsable !== undefined ? { responsable: responsable || null } : {}),
         cantidad: qty,
         precioUnitario: price,
         subtotal,
