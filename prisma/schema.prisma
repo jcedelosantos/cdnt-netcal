@@ -178,6 +178,7 @@ model InventoryClient {
   supports         InventoryThirdPartySupport[]
   projects         InventoryITProject[]
   redcalcProjects  Project[]  // Link bidireccional con proyectos de RedCalc
+  ticInventarios   TicInventario[]  // Inventarios TIC con categorías y artículos
 
   @@index([userId])
 }
@@ -280,6 +281,62 @@ model InventoryITProject {
 
   @@index([estado])
   @@index([clientId])
+}
+
+// ============================================
+// INVENTARIO TIC - WIZARD & REPORTES
+// ============================================
+
+model TicInventario {
+  id            String   @id @default(cuid())
+  userId        String
+  clientId      String
+  nombre        String   // ej: "Inventario 2024 - Reverse"
+  descripcion   String?
+  estado        String   @default("borrador") // "borrador", "completado", "archivado"
+  gastoAnual    Float    @default(0) // Total anual calculado
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  client        InventoryClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  categorias    TicCategory[]
+
+  @@index([userId])
+  @@index([clientId])
+  @@index([estado])
+}
+
+model TicCategory {
+  id            String   @id @default(cuid())
+  inventarioId  String
+  nombre        String   // ej: "Equipos", "Licencias", "Consumos"
+  descripcion   String?
+  orden         Int      @default(0)
+  gastoTotal    Float    @default(0) // Calculado: suma de todos los artículos
+
+  inventario    TicInventario @relation(fields: [inventarioId], references: [id], onDelete: Cascade)
+  articulos     TicArticle[]
+
+  @@index([inventarioId])
+}
+
+model TicArticle {
+  id            String   @id @default(cuid())
+  categoriaId   String
+  nombre        String
+  descripcion   String?
+  cantidad      Float    @default(1)
+  precioUnitario Float   @default(0)
+  subtotal      Float    @default(0) // cantidad × precioUnitario
+  fechaVencimiento DateTime?
+  proveedor     String?
+  notas         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  categoria     TicCategory @relation(fields: [categoriaId], references: [id], onDelete: Cascade)
+
+  @@index([categoriaId])
 }
 
 // ============================================
