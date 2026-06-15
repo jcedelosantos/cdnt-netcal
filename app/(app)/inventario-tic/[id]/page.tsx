@@ -5,6 +5,7 @@ import { ArrowLeft, Plus, Trash2, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
+import ImportExcel from './_components/import-excel';
 
 interface Articulo {
   id: string;
@@ -192,27 +193,41 @@ export default function InventarioDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Nueva Categoría */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Agregar Categoría</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <div className="flex gap-2">
-            <input
-              type="text"
-              placeholder="ej: Equipos, Licencias, Consumos..."
-              value={newCategoryName}
-              onChange={(e) => setNewCategoryName(e.target.value)}
-              className="flex-1 px-3 py-2 border rounded-md text-sm"
+      {/* Acciones */}
+      <div className="grid grid-cols-2 gap-3">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm">Agregar Categoría</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="ej: Equipos"
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+                className="flex-1 px-2 py-1.5 border rounded-md text-xs"
+              />
+              <Button onClick={handleCreateCategory} size="sm" className="gap-1">
+                <Plus className="w-3 h-3" />
+                Crear
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm">Importar desde Excel</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ImportExcel
+              inventarioId={inventarioId}
+              onSuccess={fetchData}
             />
-            <Button onClick={handleCreateCategory} size="sm" className="gap-2">
-              <Plus className="w-4 h-4" />
-              Crear
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Categorías y Artículos */}
       <div className="space-y-4">
