@@ -280,23 +280,19 @@ export default function ReportePage() {
         }
         y += 6;
 
-        const usaResponsable = cat.articulos.some(a => a.responsable);
-        const col6Label = usaResponsable ? 'Responsable' : 'Vencimiento';
-
         const artRows = cat.articulos.map(a => [
           a.nombre + (a.descripcion ? `\n${a.descripcion}` : ''),
           a.cantidad.toString(),
           fmtMoney(a.precioUnitario),
           fmtMoney(a.subtotal),
           a.proveedor ?? '',
-          usaResponsable
-            ? (a.responsable ?? '')
-            : (a.fechaVencimiento ? new Date(a.fechaVencimiento).toLocaleDateString('es-DO') : ''),
+          a.responsable ?? '',
+          a.fechaVencimiento ? new Date(a.fechaVencimiento).toLocaleDateString('es-DO') : '',
         ]);
 
         autoTable(doc, {
           startY: y,
-          head: [['Artículo', 'Cant.', 'Precio Unit.', 'Subtotal', 'Proveedor', col6Label]],
+          head: [['Artículo', 'Cant.', 'Precio Unit.', 'Subtotal', 'Proveedor', 'Responsable', 'Vencimiento']],
           body: artRows,
           margin: { left: mX, right: mX },
           headStyles: {
@@ -306,18 +302,19 @@ export default function ReportePage() {
             fontStyle: 'bold',
             halign: 'center',
           },
-          bodyStyles: { fontSize: 8.5, cellPadding: { top: 5, bottom: 5, left: 6, right: 6 } },
+          bodyStyles: { fontSize: 8, cellPadding: { top: 4, bottom: 4, left: 5, right: 5 } },
           alternateRowStyles: { fillColor: [248, 252, 255] as [number, number, number] },
           columnStyles: {
             0: { cellWidth: 'auto' },
-            1: { halign: 'center', cellWidth: 40 },
-            2: { halign: 'right', cellWidth: 80 },
-            3: { halign: 'right', cellWidth: 80 },
-            4: { cellWidth: 80 },
-            5: { halign: 'center', cellWidth: 70 },
+            1: { halign: 'center', cellWidth: 35 },
+            2: { halign: 'right', cellWidth: 70 },
+            3: { halign: 'right', cellWidth: 70 },
+            4: { cellWidth: 70 },
+            5: { cellWidth: 70 },
+            6: { halign: 'center', cellWidth: 65 },
           },
           didParseCell: (hook) => {
-            if (!usaResponsable && hook.section === 'body' && hook.column.index === 5 && hook.cell.raw) {
+            if (hook.section === 'body' && hook.column.index === 6 && hook.cell.raw) {
               const fechaStr = String(hook.cell.raw);
               if (fechaStr) {
                 const v = new Date(cat.articulos.find(a =>
@@ -730,48 +727,41 @@ export default function ReportePage() {
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
-              {(() => {
-                const usaResponsable = cat.articulos.some(a => a.responsable);
-                return (
-                  <table className="w-full text-sm">
-                    <thead className="bg-blue-50 border-b border-blue-200">
-                      <tr>
-                        <th className="text-left px-3 py-2 font-semibold text-[#1564AF]">Artículo</th>
-                        <th className="text-center px-3 py-2 font-semibold text-[#1564AF]">Cant.</th>
-                        <th className="text-right px-3 py-2 font-semibold text-[#1564AF]">P. Unit.</th>
-                        <th className="text-right px-3 py-2 font-semibold text-[#1564AF]">Subtotal</th>
-                        <th className="text-left px-3 py-2 font-semibold text-[#1564AF]">Proveedor</th>
-                        <th className="text-center px-3 py-2 font-semibold text-[#1564AF]">
-                          {usaResponsable ? 'Responsable' : 'Vencimiento'}
-                        </th>
+              <table className="w-full text-sm">
+                <thead className="bg-blue-50 border-b border-blue-200">
+                  <tr>
+                    <th className="text-left px-3 py-2 font-semibold text-[#1564AF]">Artículo</th>
+                    <th className="text-center px-3 py-2 font-semibold text-[#1564AF]">Cant.</th>
+                    <th className="text-right px-3 py-2 font-semibold text-[#1564AF]">P. Unit.</th>
+                    <th className="text-right px-3 py-2 font-semibold text-[#1564AF]">Subtotal</th>
+                    <th className="text-left px-3 py-2 font-semibold text-[#1564AF]">Proveedor</th>
+                    <th className="text-left px-3 py-2 font-semibold text-[#1564AF]">Responsable</th>
+                    <th className="text-center px-3 py-2 font-semibold text-[#1564AF]">Vencimiento</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cat.articulos.map((art, i) => {
+                    const vencido = art.fechaVencimiento && new Date(art.fechaVencimiento) <= new Date();
+                    return (
+                      <tr key={art.id} className={`border-b ${i % 2 === 0 ? 'bg-gray-50/50' : ''}`}>
+                        <td className="px-3 py-2">
+                          <p className="font-medium">{art.nombre}</p>
+                          {art.descripcion && <p className="text-xs text-gray-400">{art.descripcion}</p>}
+                          {art.notas && <p className="text-xs text-gray-400 italic">{art.notas}</p>}
+                        </td>
+                        <td className="text-center px-3 py-2">{art.cantidad}</td>
+                        <td className="text-right px-3 py-2">${art.precioUnitario.toLocaleString()}</td>
+                        <td className="text-right px-3 py-2 font-medium">${art.subtotal.toLocaleString()}</td>
+                        <td className="px-3 py-2 text-gray-500 text-xs">{art.proveedor ?? '—'}</td>
+                        <td className="px-3 py-2 text-gray-600 text-xs">{art.responsable ?? '—'}</td>
+                        <td className={`text-center px-3 py-2 text-xs ${vencido ? 'text-red-600 font-semibold' : 'text-gray-500'}`}>
+                          {art.fechaVencimiento ? new Date(art.fechaVencimiento).toLocaleDateString('es-DO') : '—'}
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {cat.articulos.map((art, i) => {
-                        const vencido = !usaResponsable && art.fechaVencimiento && new Date(art.fechaVencimiento) <= new Date();
-                        return (
-                          <tr key={art.id} className={`border-b ${i % 2 === 0 ? 'bg-gray-50/50' : ''}`}>
-                            <td className="px-3 py-2">
-                              <p className="font-medium">{art.nombre}</p>
-                              {art.descripcion && <p className="text-xs text-gray-400">{art.descripcion}</p>}
-                              {art.notas && <p className="text-xs text-gray-400 italic">{art.notas}</p>}
-                            </td>
-                            <td className="text-center px-3 py-2">{art.cantidad}</td>
-                            <td className="text-right px-3 py-2">${art.precioUnitario.toLocaleString()}</td>
-                            <td className="text-right px-3 py-2 font-medium">${art.subtotal.toLocaleString()}</td>
-                            <td className="px-3 py-2 text-gray-500 text-xs">{art.proveedor ?? '—'}</td>
-                            <td className={`text-center px-3 py-2 text-xs ${vencido ? 'text-red-600 font-semibold' : 'text-gray-500'}`}>
-                              {usaResponsable
-                                ? (art.responsable ?? '—')
-                                : (art.fechaVencimiento ? new Date(art.fechaVencimiento).toLocaleDateString('es-DO') : '—')}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                );
-              })()}
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           </CardContent>
         </Card>
