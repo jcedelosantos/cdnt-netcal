@@ -1,8 +1,12 @@
 'use client';
-import { Building2 } from 'lucide-react';
+import { Building2, ArrowLeft } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Button } from '@/components/ui/button';
 import CRUDPanel from '@/components/crud-panel';
 
 export default function InventarioClientesPage() {
+  const router = useRouter();
+
   const emptyForm = {
     nombre: '',
     contacto: '',
@@ -54,19 +58,31 @@ export default function InventarioClientesPage() {
   ];
 
   return (
-    <CRUDPanel
-      title="Clientes"
-      description="Gestión de clientes para equipos e inventario"
-      icon={Building2}
-      endpoint="/api/inventario/clientes"
-      emptyForm={emptyForm}
-      columns={columns}
-      formFields={formFields}
-      onBeforeSubmit={(form) => ({
-        ...form,
-        activo: form?.activo ?? true,
-      })}
-      actions={[]}
-    />
+    <div className="space-y-4">
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => router.back()}
+        className="gap-2"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        Volver
+      </Button>
+
+      <CRUDPanel
+        title="Clientes"
+        description="Gestión de clientes para equipos e inventario"
+        icon={Building2}
+        endpoint="/api/inventario/clientes"
+        emptyForm={emptyForm}
+        columns={columns}
+        formFields={formFields}
+        onBeforeSubmit={(form) => ({
+          ...form,
+          activo: form?.activo ?? true,
+        })}
+        actions={[]}
+      />
+    </div>
   );
 }

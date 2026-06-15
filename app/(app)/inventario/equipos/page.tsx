@@ -1,12 +1,15 @@
 'use client';
-import { Monitor } from 'lucide-react';
+import { Monitor, ArrowLeft } from 'lucide-react';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { Button } from '@/components/ui/button';
 import CRUDPanel from '@/components/crud-panel';
 import ImportEquipos from '@/app/(app)/inventario/_components/import-equipos';
 import { formatUSD } from '@/lib/utils';
 import { TIPOS_EQUIPO, ESTADOS_EQUIPO } from '@/lib/constants';
 
 export default function InventarioEquiposPage() {
+  const router = useRouter();
   const [refreshKey, setRefreshKey] = useState(0);
 
   const emptyForm = {
@@ -108,6 +111,16 @@ export default function InventarioEquiposPage() {
 
   return (
     <div className="space-y-6">
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => router.back()}
+        className="gap-2"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        Volver
+      </Button>
+
       <div className="flex justify-between items-start">
         <div>
           <h1 className="text-3xl font-bold font-display tracking-tight">Equipos Tecnológicos</h1>
