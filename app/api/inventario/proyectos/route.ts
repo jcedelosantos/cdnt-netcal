@@ -3,7 +3,6 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
-import { consumptionSchema } from '@/lib/validations';
 
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
@@ -11,12 +10,19 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const clientId = searchParams.get('clientId');
+    const search = searchParams.get('search') || '';
     const where: any = {};
     if (clientId) where.clientId = clientId;
-    const items = await prisma.inventoryMonthlyConsumption.findMany({ where, orderBy: { createdAt: 'desc' } });
+    if (search) {
+      where.OR = [
+        { nombre: { contains: search, mode: 'insensitive' } },
+        { descripcion: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+    const items = await prisma.inventoryITProject.findMany({ where, orderBy: { createdAt: 'desc' } });
     return NextResponse.json(items);
   } catch (error: any) {
-    return NextResponse.json({ error: 'Error' }, { status: 500 });
+    return NextResponse.json({ error: 'Error al obtener proyectos' }, { status: 500 });
   }
 }
 
@@ -25,11 +31,9 @@ export async function POST(request: Request) {
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   try {
     const body = await request.json();
-    const validated = consumptionSchema.parse(body);
-    const item = await prisma.inventoryMonthlyConsumption.create({ data: validated });
+    const item = await prisma.inventoryITProject.create({ data: body });
     return NextResponse.json(item);
   } catch (error: any) {
-    if (error.name === 'ZodError') return NextResponse.json({ error: error.errors }, { status: 400 });
     return NextResponse.json({ error: error?.message || 'Error' }, { status: 500 });
   }
 }

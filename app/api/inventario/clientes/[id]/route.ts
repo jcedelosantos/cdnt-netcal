@@ -4,6 +4,22 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { clientSchema } from '@/lib/validations';
 
+export async function GET(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+
+  try {
+    const item = await prisma.inventoryClient.findUnique({ where: { id: params.id } });
+    if (!item) return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
+    return NextResponse.json(item);
+  } catch (error: any) {
+    return NextResponse.json({ error: error?.message || 'Error' }, { status: 500 });
+  }
+}
+
 export async function PUT(
   request: Request,
   { params }: { params: { id: string } }

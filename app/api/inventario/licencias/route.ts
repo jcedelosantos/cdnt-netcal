@@ -10,8 +10,10 @@ export async function GET(request: Request) {
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   try {
     const { searchParams } = new URL(request.url);
+    const clientId = searchParams.get('clientId');
     const search = searchParams.get('search') || '';
     const where: any = {};
+    if (clientId) where.clientId = clientId;
     if (search) {
       where.OR = [
         { nombre: { contains: search, mode: 'insensitive' } },

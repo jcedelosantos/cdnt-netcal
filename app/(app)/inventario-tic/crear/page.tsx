@@ -1,10 +1,9 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Upload, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Plus, ChevronDown, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 
 interface Client {
@@ -12,266 +11,249 @@ interface Client {
   nombre: string;
 }
 
-type Step = 'cliente' | 'excel' | 'resumen';
-
 export default function CrearInventarioPage() {
   const router = useRouter();
-  const [step, setStep] = useState<Step>('cliente');
   const [clients, setClients] = useState<Client[]>([]);
-  const [selectedClientId, setSelectedClientId] = useState('');
-  const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Form fields
+  const [nombre, setNombre] = useState('');
+  const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0]);
+  const [descripcion, setDescripcion] = useState('');
+
+  // Client combobox state
+  const [clientSearch, setClientSearch] = useState('');
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [isNewClient, setIsNewClient] = useState(false);
+  const comboRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
-    const fetchClients = async () => {
-      try {
-        const res = await fetch('/api/inventario/clientes');
-        if (res.ok) {
-          const data = await res.json();
-          setClients(data || []);
-        }
-      } catch (e) {
-        console.error('Error fetching clients:', e);
-      }
-    };
-    fetchClients();
+    fetch('/api/inventario/clientes')
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setClients(data || []))
+      .catch(() => {});
   }, []);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = e.target.files?.[0];
-    if (selected) {
-      if (!selected.name.match(/\.(xlsx|xls)$/i)) {
-        toast.error('Solo se aceptan archivos .xlsx o .xls');
-        return;
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (comboRef.current && !comboRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
       }
-      setFile(selected);
-      toast.success('Archivo seleccionado');
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const filteredClients = clients.filter(c =>
+    c.nombre.toLowerCase().includes(clientSearch.toLowerCase())
+  );
+
+  const handleSelectClient = (client: Client) => {
+    setSelectedClient(client);
+    setClientSearch(client.nombre);
+    setIsNewClient(false);
+    setShowDropdown(false);
+    // Auto-fill nombre if empty
+    if (!nombre.trim()) {
+      const year = new Date().getFullYear();
+      setNombre(`Inventario ${year} - ${client.nombre}`);
     }
   };
 
-  const handleCreateInventario = async () => {
-    if (!selectedClientId) {
-      toast.error('Selecciona un cliente');
+  const handleCreateNew = () => {
+    setSelectedClient(null);
+    setIsNewClient(true);
+    setShowDropdown(false);
+    if (!nombre.trim() && clientSearch.trim()) {
+      const year = new Date().getFullYear();
+      setNombre(`Inventario ${year} - ${clientSearch.trim()}`);
+    }
+  };
+
+  const handleClientInput = (value: string) => {
+    setClientSearch(value);
+    setSelectedClient(null);
+    setIsNewClient(false);
+    setShowDropdown(true);
+  };
+
+  const handleSubmit = async () => {
+    if (!clientSearch.trim()) {
+      toast.error('Selecciona o escribe el nombre del cliente');
+      return;
+    }
+    if (!nombre.trim()) {
+      toast.error('Escribe el nombre del inventario');
       return;
     }
 
     setLoading(true);
     try {
+      const body: any = {
+        nombre: nombre.trim(),
+        descripcion: descripcion.trim() || undefined,
+        fecha,
+      };
+
+      if (selectedClient) {
+        body.clientId = selectedClient.id;
+      } else {
+        body.clienteNombre = clientSearch.trim();
+      }
+
       const res = await fetch('/api/inventario-tic', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          clientId: selectedClientId,
-          nombre: `Inventario 2024 - ${clients.find(c => c.id === selectedClientId)?.nombre}`,
-          descripcion: 'Inventario creado desde asistente',
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!res.ok) {
-        toast.error('Error al crear inventario');
+        const err = await res.json();
+        toast.error(err.error || 'Error al crear inventario');
         return;
       }
 
       const inventario = await res.json();
       toast.success('Inventario creado');
-
-      // Si hay archivo, ir a paso de Excel
-      if (file) {
-        setStep('excel');
-      } else {
-        setStep('resumen');
-      }
+      router.push(`/inventario-tic/${inventario.id}`);
     } catch (e) {
       toast.error('Error al crear inventario');
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleUploadExcel = async () => {
-    if (!file) {
-      toast.error('Selecciona un archivo Excel');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      // Por ahora, solo validamos que el archivo sea válido
-      // La lógica de procesamiento vendrá en la siguiente fase
-      toast.success('Archivo procesado correctamente');
-      setStep('resumen');
-    } catch (e) {
-      toast.error('Error al procesar Excel');
-      console.error(e);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="space-y-6 max-w-2xl mx-auto">
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => router.back()}
-        className="gap-2"
-      >
+    <div className="space-y-6 max-w-xl mx-auto">
+      <Button variant="ghost" size="sm" onClick={() => router.push('/inventario-tic')} className="gap-2">
         <ArrowLeft className="w-4 h-4" />
         Volver
       </Button>
 
       <div>
-        <h1 className="text-2xl font-bold">Crear Nuevo Inventario TIC</h1>
-        <p className="text-sm text-gray-500 mt-1">Asistente guiado paso a paso</p>
+        <h1 className="text-2xl font-bold">Nuevo Inventario TIC</h1>
+        <p className="text-sm text-gray-500 mt-1">Completa los datos para crear el inventario</p>
       </div>
 
-      {/* Progress Steps */}
-      <div className="flex gap-3">
-        {(['cliente', 'excel', 'resumen'] as const).map((s, idx) => (
-          <div key={s} className="flex items-center gap-2">
-            <div
-              className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold ${
-                s === step
-                  ? 'bg-blue-600 text-white'
-                  : ['cliente', 'excel', 'resumen'].indexOf(s) < ['cliente', 'excel', 'resumen'].indexOf(step)
-                    ? 'bg-green-100 text-green-700'
-                    : 'bg-gray-200 text-gray-600'
-              }`}
-            >
-              {['cliente', 'excel', 'resumen'].indexOf(s) < ['cliente', 'excel', 'resumen'].indexOf(step) ? (
-                <CheckCircle className="w-5 h-5" />
-              ) : (
-                idx + 1
-              )}
-            </div>
-            <span className="text-sm font-medium capitalize">{s === 'cliente' ? 'Cliente' : s === 'excel' ? 'Excel' : 'Resumen'}</span>
-            {idx < 2 && <div className="flex-1 h-0.5 bg-gray-300 ml-2" />}
-          </div>
-        ))}
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Datos del inventario</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
 
-      {/* Step: Cliente */}
-      {step === 'cliente' && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Paso 1: Selecciona el Cliente</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Cliente</label>
-              <Select value={selectedClientId} onValueChange={setSelectedClientId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecciona un cliente..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {clients.map((client) => (
-                    <SelectItem key={client.id} value={client.id}>
-                      {client.nombre}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          {/* Cliente combobox */}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Cliente *</label>
+            <div className="relative" ref={comboRef}>
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Busca o escribe el nombre del cliente..."
+                  value={clientSearch}
+                  onChange={e => handleClientInput(e.target.value)}
+                  onFocus={() => setShowDropdown(true)}
+                  className="w-full px-3 py-2 border rounded-md text-sm pr-8 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              </div>
 
-            <div className="pt-4">
-              <Button
-                onClick={handleCreateInventario}
-                disabled={!selectedClientId || loading}
-                className="w-full"
-              >
-                {loading ? 'Creando...' : 'Continuar'}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+              {showDropdown && (
+                <div className="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                  {filteredClients.length > 0 && (
+                    <>
+                      {filteredClients.map(c => (
+                        <button
+                          key={c.id}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 flex items-center gap-2"
+                          onClick={() => handleSelectClient(c)}
+                        >
+                          {selectedClient?.id === c.id && <Check className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />}
+                          <span className={selectedClient?.id === c.id ? 'text-blue-600' : ''}>{c.nombre}</span>
+                        </button>
+                      ))}
+                      {clientSearch.trim() && !clients.find(c => c.nombre.toLowerCase() === clientSearch.toLowerCase()) && (
+                        <div className="border-t" />
+                      )}
+                    </>
+                  )}
 
-      {/* Step: Excel */}
-      {step === 'excel' && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Paso 2: Cargar Excel (Opcional)</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-gray-600">
-              Carga un archivo Excel con tus datos. El archivo puede contener varias hojas:
-              <strong> Equipos, Licencias, Consumos, Soportes, Proyectos</strong>
-            </p>
+                  {clientSearch.trim() && !clients.find(c => c.nombre.toLowerCase() === clientSearch.toLowerCase()) && (
+                    <button
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 flex items-center gap-2 text-blue-600"
+                      onClick={handleCreateNew}
+                    >
+                      <Plus className="w-3.5 h-3.5 flex-shrink-0" />
+                      Crear cliente: <strong className="ml-1">"{clientSearch.trim()}"</strong>
+                    </button>
+                  )}
 
-            <div
-              className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-blue-400"
-              onClick={() => document.getElementById('excel-input')?.click()}
-            >
-              <Upload className="w-8 h-8 mx-auto text-gray-400 mb-2" />
-              <p className="text-sm font-medium">Haz clic para seleccionar archivo</p>
-              <p className="text-xs text-gray-500">o arrastra y suelta un .xlsx</p>
-              {file && (
-                <p className="text-xs text-green-600 mt-2">
-                  ✓ {file.name}
-                </p>
+                  {filteredClients.length === 0 && !clientSearch.trim() && (
+                    <p className="px-3 py-2 text-sm text-gray-400">Escribe para buscar...</p>
+                  )}
+                </div>
               )}
             </div>
 
-            <input
-              id="excel-input"
-              type="file"
-              accept=".xlsx,.xls"
-              onChange={handleFileChange}
-              className="hidden"
-            />
-
-            <div className="flex gap-2 pt-4">
-              <Button
-                variant="outline"
-                onClick={() => setStep('resumen')}
-                className="flex-1"
-              >
-                Saltar
-              </Button>
-              <Button
-                onClick={handleUploadExcel}
-                disabled={!file || loading}
-                className="flex-1"
-              >
-                {loading ? 'Procesando...' : 'Procesar Excel'}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Step: Resumen */}
-      {step === 'resumen' && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">✓ Inventario Creado</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-              <p className="text-sm text-green-800">
-                Tu inventario ha sido creado exitosamente. Puedes comenzar a agregar artículos y categorías.
+            {isNewClient && clientSearch.trim() && (
+              <p className="text-xs text-blue-600 flex items-center gap-1 mt-1">
+                <Plus className="w-3 h-3" />
+                Se creará un nuevo cliente: <strong>"{clientSearch.trim()}"</strong>
               </p>
-            </div>
+            )}
+            {selectedClient && (
+              <p className="text-xs text-green-600 flex items-center gap-1 mt-1">
+                <Check className="w-3 h-3" />
+                Cliente existente seleccionado
+              </p>
+            )}
+          </div>
 
-            <div className="pt-4 flex gap-2">
-              <Button
-                variant="outline"
-                onClick={() => router.push('/inventario-tic')}
-                className="flex-1"
-              >
-                Ver Inventarios
-              </Button>
-              <Button
-                onClick={() => router.push('/inventario-tic')}
-                className="flex-1"
-              >
-                Continuar Editando
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+          {/* Nombre del inventario */}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Nombre del inventario *</label>
+            <input
+              type="text"
+              placeholder="ej: Inventario 2024 - Reverse"
+              value={nombre}
+              onChange={e => setNombre(e.target.value)}
+              className="w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          {/* Fecha */}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Fecha</label>
+            <input
+              type="date"
+              value={fecha}
+              onChange={e => setFecha(e.target.value)}
+              className="w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          {/* Descripción */}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Descripción <span className="text-gray-400 font-normal">(opcional)</span></label>
+            <textarea
+              placeholder="Notas o descripción del inventario..."
+              value={descripcion}
+              onChange={e => setDescripcion(e.target.value)}
+              rows={2}
+              className="w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+            />
+          </div>
+
+          <Button
+            onClick={handleSubmit}
+            disabled={loading || !clientSearch.trim() || !nombre.trim()}
+            className="w-full"
+          >
+            {loading ? 'Creando...' : 'Crear Inventario'}
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -11,8 +11,13 @@ export async function GET(request: Request) {
   try {
     const userId = (session?.user as any)?.id;
 
+    const { searchParams } = new URL(request.url);
+    const clientId = searchParams.get('clientId');
+    const where: any = { userId };
+    if (clientId) where.clientId = clientId;
+
     const inventarios = await prisma.ticInventario.findMany({
-      where: { userId },
+      where,
       include: {
         client: {
           select: { id: true, nombre: true },
@@ -49,21 +54,34 @@ export async function POST(request: Request) {
 
   try {
     const userId = (session?.user as any)?.id;
-    const { clientId, nombre, descripcion } = await request.json();
+    if (!userId) return NextResponse.json({ error: 'Sesión inválida' }, { status: 401 });
 
-    if (!clientId || !nombre) {
-      return NextResponse.json(
-        { error: 'clientId y nombre son requeridos' },
-        { status: 400 }
-      );
+    const { clientId, clienteNombre, nombre, descripcion, fecha } = await request.json();
+
+    if (!nombre) {
+      return NextResponse.json({ error: 'nombre es requerido' }, { status: 400 });
+    }
+
+    // Resolve clientId: use existing or create new client
+    let resolvedClientId = clientId;
+    if (!resolvedClientId && clienteNombre?.trim()) {
+      const nuevoCliente = await prisma.inventoryClient.create({
+        data: { userId, nombre: clienteNombre.trim(), activo: true },
+      });
+      resolvedClientId = nuevoCliente.id;
+    }
+
+    if (!resolvedClientId) {
+      return NextResponse.json({ error: 'Cliente requerido' }, { status: 400 });
     }
 
     const inventario = await prisma.ticInventario.create({
       data: {
         userId,
-        clientId,
+        clientId: resolvedClientId,
         nombre,
         descripcion,
+        fecha: fecha ? new Date(fecha) : null,
         estado: 'borrador',
       },
       include: {

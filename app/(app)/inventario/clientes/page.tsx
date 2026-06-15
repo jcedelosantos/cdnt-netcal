@@ -1,6 +1,7 @@
 'use client';
-import { Building2, ArrowLeft } from 'lucide-react';
+import { Building2, ArrowLeft, ExternalLink } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import CRUDPanel from '@/components/crud-panel';
 
@@ -43,6 +44,19 @@ export default function InventarioClientesPage() {
         >
           {v ? 'Activo' : 'Inactivo'}
         </span>
+      ),
+    },
+    {
+      key: 'id',
+      label: '',
+      render: (_v: any, item: any) => (
+        <Link
+          href={`/inventario/clientes/${item.id}`}
+          className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium"
+        >
+          <ExternalLink className="w-3 h-3" />
+          Ver inventario
+        </Link>
       ),
     },
   ];

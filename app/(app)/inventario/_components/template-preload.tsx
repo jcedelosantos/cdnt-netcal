@@ -65,7 +65,7 @@ export default function TemplatePreload({ clientId, onSuccess }: TemplatePreload
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Precarga Rápida</DialogTitle>
             <DialogDescription>
@@ -73,6 +73,7 @@ export default function TemplatePreload({ clientId, onSuccess }: TemplatePreload
             </DialogDescription>
           </DialogHeader>
 
+          <div className="overflow-y-auto flex-1 pr-1">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {categories.map(([key, template]) => {
               const Icon = ICONS[template.icon as keyof typeof ICONS];
@@ -133,6 +134,7 @@ export default function TemplatePreload({ clientId, onSuccess }: TemplatePreload
 
           <div className="mt-6 pt-4 border-t text-sm text-gray-600">
             💡 <strong>Tip:</strong> Puedes cargar múltiples categorías. Todos los datos son editables después.
+          </div>
           </div>
         </DialogContent>
       </Dialog>

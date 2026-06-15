@@ -48,25 +48,34 @@ export async function PUT(
 
   try {
     const inventarioId = params.id;
-    const { nombre, descripcion, estado } = await request.json();
+    const { nombre, descripcion, estado, fecha, clientId, clienteNombre } = await request.json();
+    const userId = (session?.user as any)?.id;
 
     const inventario = await prisma.ticInventario.findFirst({
-      where: {
-        id: inventarioId,
-        userId: (session?.user as any)?.id,
-      },
+      where: { id: inventarioId, userId },
     });
 
     if (!inventario) {
       return NextResponse.json({ error: 'Inventario no encontrado' }, { status: 404 });
     }
 
+    // Resolve clientId: create new client if nombre provided
+    let resolvedClientId = clientId;
+    if (!resolvedClientId && clienteNombre?.trim()) {
+      const nuevoCliente = await prisma.inventoryClient.create({
+        data: { userId, nombre: clienteNombre.trim(), activo: true },
+      });
+      resolvedClientId = nuevoCliente.id;
+    }
+
     const updated = await prisma.ticInventario.update({
       where: { id: inventarioId },
       data: {
         ...(nombre && { nombre }),
-        ...(descripcion && { descripcion }),
+        ...(descripcion !== undefined && { descripcion }),
         ...(estado && { estado }),
+        ...(fecha !== undefined && { fecha: fecha ? new Date(fecha) : null }),
+        ...(resolvedClientId && { clientId: resolvedClientId }),
       },
       include: {
         client: { select: { id: true, nombre: true } },
