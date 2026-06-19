@@ -22,35 +22,71 @@ interface Props {
   onClose: () => void;
   onSaved: () => void;
   preselect?: { tecnicoId?: string; projectId?: string; fecha?: string };
+  editando?: any;   // jornada completa para editar
+  copiando?: any;   // jornada completa para copiar (mismos datos, fecha vacía)
 }
 
-export default function JornadaForm({ tecnicos, proyectos, onClose, onSaved, preselect }: Props) {
+export default function JornadaForm({ tecnicos, proyectos, onClose, onSaved, preselect, editando, copiando }: Props) {
+  const source = editando ?? copiando;
+  const modoEdicion = !!editando;
+  const modoCopia = !!copiando;
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [form, setForm] = useState({
-    tecnicoId: preselect?.tecnicoId ?? '',
-    projectId: preselect?.projectId ?? '',
-    fecha: preselect?.fecha ?? new Date().toISOString().split('T')[0],
-    horaEntrada: '08:00',
-    horaSalida: '17:00',
-    horasTotales: '9',
-    horasExtra: '0',
-    tipoJornada: 'completa',
-    tarifaDia: '',
-    tarifaHoraExtra: '',
-    bonificacion: '0',
-    viaticos: '0',
-    transporte: '0',
-    alimentacion: '0',
-    descuento: '0',
-    actividades: '',
-    observaciones: '',
-    estado: 'presente',
-  });
 
-  // Auto-fill tarifa when tecnico changes
+  const buildInitialForm = () => {
+    if (source) {
+      return {
+        tecnicoId: source.tecnicoId ?? '',
+        projectId: source.projectId ?? '',
+        // Editar: misma fecha. Copiar: vacío para que el usuario elija
+        fecha: modoEdicion
+          ? (source.fecha ? source.fecha.split('T')[0] : '')
+          : new Date().toISOString().split('T')[0],
+        horaEntrada: source.horaEntrada ?? '08:00',
+        horaSalida: source.horaSalida ?? '17:00',
+        horasTotales: source.horasTotales?.toString() ?? '9',
+        horasExtra: source.horasExtra?.toString() ?? '0',
+        tipoJornada: source.tipoJornada ?? 'completa',
+        tarifaDia: source.tarifaDia?.toString() ?? '',
+        tarifaHoraExtra: source.tarifaHoraExtra?.toString() ?? '0',
+        bonificacion: source.bonificacion?.toString() ?? '0',
+        viaticos: source.viaticos?.toString() ?? '0',
+        transporte: source.transporte?.toString() ?? '0',
+        alimentacion: source.alimentacion?.toString() ?? '0',
+        descuento: source.descuento?.toString() ?? '0',
+        actividades: source.actividades ?? '',
+        observaciones: source.observaciones ?? '',
+        estado: modoEdicion ? (source.estado ?? 'presente') : 'presente',
+      };
+    }
+    return {
+      tecnicoId: preselect?.tecnicoId ?? '',
+      projectId: preselect?.projectId ?? '',
+      fecha: preselect?.fecha ?? new Date().toISOString().split('T')[0],
+      horaEntrada: '08:00',
+      horaSalida: '17:00',
+      horasTotales: '9',
+      horasExtra: '0',
+      tipoJornada: 'completa',
+      tarifaDia: '',
+      tarifaHoraExtra: '',
+      bonificacion: '0',
+      viaticos: '0',
+      transporte: '0',
+      alimentacion: '0',
+      descuento: '0',
+      actividades: '',
+      observaciones: '',
+      estado: 'presente',
+    };
+  };
+
+  const [form, setForm] = useState(buildInitialForm);
+
+  // Auto-fill tarifa when tecnico changes (solo si no hay valor ya)
   useEffect(() => {
-    if (form.tecnicoId) {
+    if (form.tecnicoId && !source) {
       const t = tecnicos.find(tc => tc.id === form.tecnicoId);
       if (t) {
         setForm(f => ({
@@ -60,7 +96,7 @@ export default function JornadaForm({ tecnicos, proyectos, onClose, onSaved, pre
         }));
       }
     }
-  }, [form.tecnicoId, tecnicos]);
+  }, [form.tecnicoId, tecnicos, source]);
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
@@ -83,8 +119,10 @@ export default function JornadaForm({ tecnicos, proyectos, onClose, onSaved, pre
     if (!form.tecnicoId || !form.projectId || !form.fecha) { setError('Técnico, proyecto y fecha son requeridos'); return; }
     setLoading(true);
     try {
-      const res = await fetch('/api/jornadas', {
-        method: 'POST',
+      const url = modoEdicion ? `/api/jornadas/${editando.id}` : '/api/jornadas';
+      const method = modoEdicion ? 'PUT' : 'POST';
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form, totalJornada: calcTotal() }),
       });
@@ -102,7 +140,9 @@ export default function JornadaForm({ tecnicos, proyectos, onClose, onSaved, pre
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-5 border-b sticky top-0 bg-white z-10">
-          <h2 className="text-lg font-bold">Registrar Jornada</h2>
+          <h2 className="text-lg font-bold">
+            {modoEdicion ? 'Editar Jornada' : modoCopia ? 'Copiar Jornada' : 'Registrar Jornada'}
+          </h2>
           <button onClick={onClose}><X className="w-5 h-5 text-muted-foreground" /></button>
         </div>
 

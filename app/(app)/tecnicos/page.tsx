@@ -48,6 +48,8 @@ export default function TecnicosPage() {
   const [showTecnicoForm, setShowTecnicoForm] = useState(false);
   const [showJornadaForm, setShowJornadaForm] = useState(false);
   const [editingTecnico, setEditingTecnico] = useState<any>(null);
+  const [editingJornada, setEditingJornada] = useState<any>(null);
+  const [copyingJornada, setCopyingJornada] = useState<any>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -156,6 +158,8 @@ export default function TecnicosPage() {
                   jornadas={jornadas.slice(0, 8)}
                   onRefresh={loadData}
                   showActions={false}
+                  onEdit={() => {}}
+                  onCopy={() => {}}
                 />
               </div>
 
@@ -258,12 +262,18 @@ export default function TecnicosPage() {
             <div className="space-y-4">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <h3 className="font-semibold">Registro de Jornadas</h3>
-                <Button size="sm" onClick={() => setShowJornadaForm(true)}>
+                <Button size="sm" onClick={() => { setEditingJornada(null); setCopyingJornada(null); setShowJornadaForm(true); }}>
                   <Plus className="w-4 h-4 mr-1.5" /> Nueva Jornada
                 </Button>
               </div>
               <div className="bg-white rounded-xl border overflow-x-auto">
-                <JornadasTable jornadas={jornadas} onRefresh={loadData} showActions />
+                <JornadasTable
+                  jornadas={jornadas}
+                  onRefresh={loadData}
+                  showActions
+                  onEdit={j => { setEditingJornada(j); setCopyingJornada(null); setShowJornadaForm(true); }}
+                  onCopy={j => { setCopyingJornada(j); setEditingJornada(null); setShowJornadaForm(true); }}
+                />
               </div>
             </div>
           )}
@@ -297,8 +307,10 @@ export default function TecnicosPage() {
         <JornadaForm
           tecnicos={tecnicos.filter(t => t.estado === 'activo')}
           proyectos={proyectos}
-          onClose={() => setShowJornadaForm(false)}
-          onSaved={() => { setShowJornadaForm(false); loadData(); }}
+          editando={editingJornada}
+          copiando={copyingJornada}
+          onClose={() => { setShowJornadaForm(false); setEditingJornada(null); setCopyingJornada(null); }}
+          onSaved={() => { setShowJornadaForm(false); setEditingJornada(null); setCopyingJornada(null); loadData(); }}
         />
       )}
     </div>
@@ -336,7 +348,15 @@ const ESTADO_JORNADA: Record<string, { label: string; cls: string }> = {
   aprobado: { label: 'Aprobado', cls: 'bg-teal-100 text-teal-800' },
 };
 
-function JornadasTable({ jornadas, onRefresh, showActions }: { jornadas: any[]; onRefresh: () => void; showActions: boolean }) {
+function JornadasTable({
+  jornadas, onRefresh, showActions, onEdit, onCopy,
+}: {
+  jornadas: any[];
+  onRefresh: () => void;
+  showActions: boolean;
+  onEdit: (j: any) => void;
+  onCopy: (j: any) => void;
+}) {
   const aprobar = async (id: string) => {
     await fetch(`/api/jornadas/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estado: 'aprobado' }) });
     onRefresh();
@@ -356,12 +376,13 @@ function JornadasTable({ jornadas, onRefresh, showActions }: { jornadas: any[]; 
           <th className="text-left px-4 py-3 hidden lg:table-cell">Tipo</th>
           <th className="text-right px-4 py-3">Total</th>
           <th className="text-left px-4 py-3">Estado</th>
-          {showActions && <th className="px-4 py-3"></th>}
+          {showActions && <th className="px-4 py-3 w-[120px]"></th>}
         </tr>
       </thead>
       <tbody className="divide-y">
         {jornadas.map(j => {
           const estado = ESTADO_JORNADA[j.estado] ?? { label: j.estado, cls: 'bg-muted text-foreground' };
+          const pagada = !!j.periodoPagoId;
           return (
             <tr key={j.id} className="hover:bg-muted/20 transition-colors">
               <td className="px-4 py-3 font-medium">{new Date(j.fecha).toLocaleDateString('es-DO', { day: '2-digit', month: 'short' })}</td>
@@ -373,15 +394,25 @@ function JornadasTable({ jornadas, onRefresh, showActions }: { jornadas: any[]; 
               <td className="px-4 py-3 text-right font-semibold">RD$ {(j.totalJornada || 0).toLocaleString()}</td>
               <td className="px-4 py-3">
                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${estado.cls}`}>{estado.label}</span>
-                {j.periodoPagoId && <span className="ml-1 text-[10px] text-emerald-600">✓ pagado</span>}
+                {pagada && <span className="ml-1 text-[10px] text-emerald-600">✓ pagado</span>}
               </td>
               {showActions && (
                 <td className="px-4 py-3">
-                  {j.estado === 'pendiente' && (
-                    <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => aprobar(j.id)}>
-                      Aprobar
+                  <div className="flex items-center gap-1 justify-end">
+                    {j.estado === 'pendiente' && (
+                      <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => aprobar(j.id)}>
+                        Aprobar
+                      </Button>
+                    )}
+                    {!pagada && (
+                      <Button size="sm" variant="ghost" className="text-xs h-7 px-2" onClick={() => onEdit(j)} title="Editar jornada">
+                        ✏️
+                      </Button>
+                    )}
+                    <Button size="sm" variant="ghost" className="text-xs h-7 px-2" onClick={() => onCopy(j)} title="Copiar jornada">
+                      📋
                     </Button>
-                  )}
+                  </div>
                 </td>
               )}
             </tr>
