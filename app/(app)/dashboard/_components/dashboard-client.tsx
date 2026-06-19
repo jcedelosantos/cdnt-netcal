@@ -5,17 +5,18 @@ import { Button } from '@/components/ui/button';
 import { FadeIn, SlideIn } from '@/components/ui/animate';
 import {
   PlusCircle, FolderOpen, Cable,
-  Receipt, Network, ArrowRight, CheckCircle2, Clock,
+  Receipt, Network, ArrowRight, CheckCircle2, Clock, Monitor,
 } from 'lucide-react';
 import Link from 'next/link';
 
 interface Props {
   stats: { total: number; facturados: number; aprobados: number; pendientes: number };
   recentProjects: any[];
+  recentInventarios: any[];
   userName: string;
 }
 
-export default function DashboardClient({ stats, recentProjects, userName }: Props) {
+export default function DashboardClient({ stats, recentProjects, recentInventarios, userName }: Props) {
   return (
     <div className="p-4 lg:p-8 max-w-6xl mx-auto">
       <FadeIn>
@@ -154,6 +155,76 @@ export default function DashboardClient({ stats, recentProjects, userName }: Pro
                           </div>
                           <p className="text-xs text-muted-foreground">
                             {p?.cliente ?? 'Sin cliente'} • {p?.categoriaCable ?? 'Cat6'} • {p?.totalPuntos ?? 0} puntos
+                          </p>
+                        </div>
+                      </div>
+                      <ArrowRight className="w-4 h-4 text-muted-foreground" />
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </FadeIn>
+
+      {/* Inventarios TIC Recientes */}
+      <FadeIn delay={0.4}>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="font-display flex items-center gap-2">
+                <Monitor className="w-5 h-5 text-blue-600" />
+                Inventarios TIC
+              </CardTitle>
+              <CardDescription>Activos tecnológicos por cliente</CardDescription>
+            </div>
+            <div className="flex gap-2">
+              {(recentInventarios?.length ?? 0) > 0 && (
+                <Link href="/inventario-tic">
+                  <Button variant="outline" size="sm">Ver todos <ArrowRight className="w-4 h-4 ml-1" /></Button>
+                </Link>
+              )}
+              <Link href="/inventario-tic/crear">
+                <Button size="sm" className="gap-1">
+                  <PlusCircle className="w-4 h-4" /> Nuevo
+                </Button>
+              </Link>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {(recentInventarios?.length ?? 0) === 0 ? (
+              <div className="text-center py-10">
+                <Monitor className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
+                <p className="text-muted-foreground text-sm">No hay inventarios aún</p>
+                <Link href="/inventario-tic/crear">
+                  <Button className="mt-4" variant="outline" size="sm">
+                    <PlusCircle className="w-4 h-4 mr-2" /> Crear primer inventario
+                  </Button>
+                </Link>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {(recentInventarios ?? []).map((inv: any) => (
+                  <Link key={inv.id} href={`/inventario-tic/${inv.id}`}>
+                    <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+                          <Monitor className="w-5 h-5 text-blue-600" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-medium">{inv.nombre}</p>
+                            <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
+                              inv.estado === 'completado'
+                                ? 'bg-green-100 text-green-700'
+                                : 'bg-yellow-100 text-yellow-700'
+                            }`}>
+                              {inv.estado === 'completado' ? 'Completado' : 'Borrador'}
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {inv.cliente} • {inv.categorias} categoría{inv.categorias !== 1 ? 's' : ''} • ${(inv.gastoAnual ?? 0).toLocaleString()} anual
                           </p>
                         </div>
                       </div>

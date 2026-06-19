@@ -110,6 +110,8 @@ model Project {
   puntos              ProjectPoint[]
   materiales          ProjectMaterial[]
   pagos               Pago[]
+  asignaciones        ProyectoAsignacion[]
+  jornadas            Jornada[]
 
   @@index([userId])
   @@index([inventoryClientId])
@@ -339,6 +341,239 @@ model TicArticle {
   categoria     TicCategory @relation(fields: [categoriaId], references: [id], onDelete: Cascade)
 
   @@index([categoriaId])
+}
+
+// ============================================
+// GESTIÓN DE TÉCNICOS, JORNADAS Y PAGOS
+// ============================================
+
+model TecnicoRol {
+  id            String   @id @default(cuid())
+  userId        String
+  nombre        String
+  descripcion   String?
+  tarifaDiaria  Float    @default(0)
+  color         String   @default("#3B82F6")
+  createdAt     DateTime @default(now())
+
+  tecnicos      Tecnico[]
+  asignaciones  ProyectoAsignacion[]
+
+  @@index([userId])
+}
+
+model Tecnico {
+  id                String   @id @default(cuid())
+  userId            String
+  codigo            String?
+  nombre            String
+  cedula            String?
+  telefono          String?
+  email             String?
+  direccion         String?
+  foto              String?
+  rolId             String?
+  especialidades    String?  // JSON array
+  tarifaDiaria      Float    @default(0)
+  tarifaHora        Float?
+  tarifaHoraExtra   Float    @default(0)
+  fechaIngreso      DateTime?
+  estado            String   @default("activo") // activo, inactivo, suspendido
+  tipoContratacion  String   @default("fijo")   // fijo, temporal, subcontratista, ayudante, supervisor
+  datosBancarios    String?  // JSON
+  notas             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  rol               TecnicoRol?          @relation(fields: [rolId], references: [id])
+  asignaciones      ProyectoAsignacion[]
+  jornadas          Jornada[]
+  anticipos         Anticipo[]
+  recibos           Recibo[]
+
+  @@index([userId])
+  @@index([estado])
+}
+
+model ProyectoAsignacion {
+  id              String   @id @default(cuid())
+  tecnicoId       String
+  projectId       String
+  userId          String
+  rolId           String?
+  rolNombre       String?
+  fechaInicio     DateTime?
+  fechaFin        DateTime?
+  diasProgramados Int      @default(0)
+  tarifaDiaria    Float    @default(0)
+  tarifaHoraExtra Float    @default(0)
+  bonificacion    Float    @default(0)
+  viaticos        Float    @default(0)
+  transporte      Float    @default(0)
+  alimentacion    Float    @default(0)
+  descuento       Float    @default(0)
+  anticipo        Float    @default(0)
+  responsableAuth String?
+  estado          String   @default("activo")
+  notas           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tecnico         Tecnico            @relation(fields: [tecnicoId], references: [id], onDelete: Cascade)
+  project         Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  rol             TecnicoRol?        @relation(fields: [rolId], references: [id])
+  jornadas        Jornada[]
+
+  @@index([tecnicoId])
+  @@index([projectId])
+  @@index([userId])
+}
+
+model Jornada {
+  id              String   @id @default(cuid())
+  tecnicoId       String
+  projectId       String
+  asignacionId    String?
+  userId          String
+  fecha           DateTime
+  horaEntrada     String?
+  horaSalida      String?
+  horasTotales    Float    @default(0)
+  horasExtra      Float    @default(0)
+  tipoJornada     String   @default("completa") // completa, media, horas, nocturna, fin_semana, feriado
+  tarifaDia       Float    @default(0)
+  tarifaHoraExtra Float    @default(0)
+  bonificacion    Float    @default(0)
+  viaticos        Float    @default(0)
+  transporte      Float    @default(0)
+  alimentacion    Float    @default(0)
+  descuento       Float    @default(0)
+  totalJornada    Float    @default(0)
+  actividades     String?
+  observaciones   String?
+  estado          String   @default("programado") // programado, presente, ausente, cancelado, pendiente, aprobado
+  aprobadoPor     String?
+  periodoPagoId   String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tecnico         Tecnico             @relation(fields: [tecnicoId], references: [id], onDelete: Cascade)
+  project         Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  asignacion      ProyectoAsignacion? @relation(fields: [asignacionId], references: [id])
+  periodoPago     PeriodoPago?        @relation(fields: [periodoPagoId], references: [id])
+
+  @@unique([tecnicoId, projectId, fecha])
+  @@index([tecnicoId])
+  @@index([projectId])
+  @@index([userId])
+  @@index([fecha])
+  @@index([estado])
+  @@index([periodoPagoId])
+}
+
+model PeriodoPago {
+  id              String   @id @default(cuid())
+  userId          String
+  nombre          String
+  tipo            String   @default("semanal") // diario, semanal, quincenal, mensual, proyecto, personalizado
+  fechaInicio     DateTime
+  fechaFin        DateTime
+  totalBruto      Float    @default(0)
+  totalDescuentos Float    @default(0)
+  totalAnticipos  Float    @default(0)
+  totalNeto       Float    @default(0)
+  estado          String   @default("borrador") // borrador, revision, aprobado, parcial, pagado, anulado
+  fechaPago       DateTime?
+  metodoPago      String?
+  referencia      String?
+  aprobadoPor     String?
+  notas           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  jornadas        Jornada[]
+  detalles        DetallePago[]
+  recibos         Recibo[]
+
+  @@index([userId])
+  @@index([estado])
+}
+
+model DetallePago {
+  id              String   @id @default(cuid())
+  periodoPagoId   String
+  tecnicoId       String
+  userId          String
+  diasTrabajados  Int      @default(0)
+  horasNormales   Float    @default(0)
+  horasExtra      Float    @default(0)
+  salarioBase     Float    @default(0)
+  bonificaciones  Float    @default(0)
+  viaticos        Float    @default(0)
+  transporte      Float    @default(0)
+  alimentacion    Float    @default(0)
+  otrosIngresos   Float    @default(0)
+  descuentos      Float    @default(0)
+  anticipos       Float    @default(0)
+  pagoBruto       Float    @default(0)
+  pagoNeto        Float    @default(0)
+  estado          String   @default("pendiente") // pendiente, aprobado, pagado
+  metodoPago      String?
+  referencia      String?
+  notas           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  periodoPago     PeriodoPago @relation(fields: [periodoPagoId], references: [id], onDelete: Cascade)
+
+  @@index([periodoPagoId])
+  @@index([tecnicoId])
+  @@index([userId])
+}
+
+model Anticipo {
+  id              String   @id @default(cuid())
+  tecnicoId       String
+  userId          String
+  projectId       String?
+  fecha           DateTime @default(now())
+  monto           Float
+  motivo          String?
+  metodoPago      String?
+  referencia      String?
+  autorizadoPor   String?
+  periodoPagoId   String?  // periodo donde se aplicó
+  estado          String   @default("pendiente") // pendiente, aplicado, cancelado
+  notas           String?
+  createdAt       DateTime @default(now())
+
+  tecnico         Tecnico  @relation(fields: [tecnicoId], references: [id], onDelete: Cascade)
+
+  @@index([tecnicoId])
+  @@index([userId])
+  @@index([estado])
+}
+
+model Recibo {
+  id              String   @id @default(cuid())
+  numero          String   @unique
+  periodoPagoId   String?
+  detallePagoId   String?
+  tecnicoId       String
+  userId          String
+  fechaEmision    DateTime @default(now())
+  contenido       String?  // JSON snapshot
+  estado          String   @default("pendiente") // pendiente, firmado, rechazado, anulado
+  firmadoEn       DateTime?
+  notas           String?
+  createdAt       DateTime @default(now())
+
+  tecnico         Tecnico      @relation(fields: [tecnicoId], references: [id], onDelete: Cascade)
+  periodoPago     PeriodoPago? @relation(fields: [periodoPagoId], references: [id])
+
+  @@index([tecnicoId])
+  @@index([userId])
+  @@index([estado])
 }
 
 // ============================================

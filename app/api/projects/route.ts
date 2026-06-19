@@ -77,10 +77,11 @@ export async function POST(req: Request) {
     const session = await getServerSession(authOptions);
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     const userId = (session?.user as any)?.id;
+    if (!userId) return NextResponse.json({ error: 'Sesión inválida' }, { status: 401 });
 
     const body = await req.json();
     const {
-      nombre, cliente, clienteRNC, ubicacion, fecha,
+      nombre, cliente, clienteNombre, inventoryClientId, clienteRNC, ubicacion, fecha,
       modoAvanzado, tipoInstalacion, tipoCanalización, categoriaCable,
       distanciaPromedio, reservaCable, reservaMateriales,
       switchPuertos, switchPoE, switchPuertosPoE, gabineteRU,
@@ -88,6 +89,27 @@ export async function POST(req: Request) {
       costoTransporte, costoConfiguracion, costoCertificacion, itbis,
       notas, puntos,
     } = body ?? {};
+
+    // Resolve inventory client: use existing ID or create new from name
+    let resolvedClientId = inventoryClientId ?? null;
+    let resolvedClientName = cliente ?? null;
+    if (!resolvedClientId && (clienteNombre ?? cliente)?.trim()) {
+      const nameToUse = (clienteNombre ?? cliente).trim();
+      // Find or create InventoryClient
+      let ic = await prisma.inventoryClient.findFirst({
+        where: { userId, nombre: nameToUse },
+      });
+      if (!ic) {
+        ic = await prisma.inventoryClient.create({
+          data: { userId, nombre: nameToUse, activo: true },
+        });
+      }
+      resolvedClientId = ic.id;
+      resolvedClientName = ic.nombre;
+    } else if (resolvedClientId) {
+      const ic = await prisma.inventoryClient.findUnique({ where: { id: resolvedClientId } });
+      resolvedClientName = ic?.nombre ?? resolvedClientName;
+    }
 
     // Número de cotización automático (COT-AAAA-NNN)
     const numeroCotizacion = await generarNumeroCotizacion(userId);
@@ -98,7 +120,8 @@ export async function POST(req: Request) {
         userId,
         numeroCotizacion,
         nombre: nombre ?? 'Proyecto sin nombre',
-        cliente: cliente ?? null,
+        cliente: resolvedClientName,
+        inventoryClientId: resolvedClientId,
         clienteRNC: clienteRNC ?? null,
         ubicacion: ubicacion ?? null,
         fecha: fecha ? new Date(fecha) : new Date(),

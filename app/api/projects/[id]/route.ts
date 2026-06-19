@@ -79,7 +79,19 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     if (!existing) return NextResponse.json({ error: 'Proyecto no encontrado' }, { status: 404 });
 
     const body = await req.json();
-    const { puntos, ...projectData } = body ?? {};
+    const { puntos, inventoryClientId, clienteNombre, ...projectData } = body ?? {};
+
+    // Resolve inventory client
+    let resolvedClientId = inventoryClientId !== undefined ? inventoryClientId : undefined;
+    if (clienteNombre?.trim()) {
+      let ic = await prisma.inventoryClient.findFirst({ where: { userId, nombre: clienteNombre.trim() } });
+      if (!ic) ic = await prisma.inventoryClient.create({ data: { userId, nombre: clienteNombre.trim(), activo: true } });
+      resolvedClientId = ic.id;
+      if (!projectData.cliente) projectData.cliente = ic.nombre;
+    } else if (resolvedClientId) {
+      const ic = await prisma.inventoryClient.findUnique({ where: { id: resolvedClientId } });
+      if (ic && !projectData.cliente) projectData.cliente = ic.nombre;
+    }
 
     // Update project
     const updateData: any = {};
@@ -94,6 +106,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       if (projectData[f] !== undefined) updateData[f] = projectData[f];
     }
     if (projectData.fecha) updateData.fecha = new Date(projectData.fecha);
+    if (resolvedClientId !== undefined) updateData.inventoryClientId = resolvedClientId;
 
     const project = await prisma.project.update({
       where: { id },

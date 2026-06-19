@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -13,8 +13,13 @@ import {
   Network, Building2, MapPin, Calendar, Cable, Settings2,
   Plus, Trash2, ChevronRight, ChevronLeft, Save, Calculator,
   Server, Shield, Zap, ToggleLeft, ToggleRight, Wifi,
-  Camera, Phone, Monitor, Radio, AlertTriangle,
+  Camera, Phone, Monitor, Radio, AlertTriangle, ChevronDown, Check,
 } from 'lucide-react';
+
+interface InventoryClient {
+  id: string;
+  nombre: string;
+}
 
 const TIPOS_PUNTO = [
   { value: 'datos', label: 'Datos', icon: Monitor, color: 'bg-blue-100 text-blue-600' },
@@ -72,6 +77,30 @@ export default function ProjectFormClient() {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
+
+  // Client combobox
+  const [inventoryClients, setInventoryClients] = useState<InventoryClient[]>([]);
+  const [clientSearch, setClientSearch] = useState('');
+  const [selectedClient, setSelectedClient] = useState<InventoryClient | null>(null);
+  const [showClientDrop, setShowClientDrop] = useState(false);
+  const clientComboRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    fetch('/api/inventario/clientes')
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setInventoryClients(d || []))
+      .catch(() => {});
+    const handler = (e: MouseEvent) => {
+      if (clientComboRef.current && !clientComboRef.current.contains(e.target as Node))
+        setShowClientDrop(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const filteredClients = inventoryClients.filter(c =>
+    c.nombre.toLowerCase().includes(clientSearch.toLowerCase())
+  );
 
   const today = new Date().toISOString().split('T')[0];
 
@@ -180,10 +209,18 @@ export default function ProjectFormClient() {
     }
     setLoading(true);
     try {
+      const payload: any = { ...form };
+      if (selectedClient) {
+        payload.inventoryClientId = selectedClient.id;
+        payload.cliente = selectedClient.nombre;
+      } else if (clientSearch.trim()) {
+        payload.clienteNombre = clientSearch.trim();
+        payload.cliente = clientSearch.trim();
+      }
       const res = await fetch('/api/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -261,7 +298,56 @@ export default function ProjectFormClient() {
                 </div>
                 <div className="space-y-2">
                   <Label>Cliente</Label>
-                  <Input placeholder="Nombre del cliente" value={form?.cliente ?? ''} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateField('cliente', e.target.value)} />
+                  <div className="relative" ref={clientComboRef}>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Busca o escribe el nombre..."
+                        value={clientSearch}
+                        onChange={e => {
+                          setClientSearch(e.target.value);
+                          setSelectedClient(null);
+                          setShowClientDrop(true);
+                          updateField('cliente', e.target.value);
+                        }}
+                        onFocus={() => setShowClientDrop(true)}
+                        className="w-full h-10 px-3 py-2 border border-input rounded-md text-sm bg-background pr-8 focus:outline-none focus:ring-2 focus:ring-ring"
+                      />
+                      <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                    </div>
+                    {showClientDrop && (clientSearch.trim() || inventoryClients.length > 0) && (
+                      <div className="absolute z-20 w-full mt-1 bg-background border rounded-md shadow-lg max-h-44 overflow-y-auto">
+                        {filteredClients.map(c => (
+                          <button key={c.id} type="button"
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-muted flex items-center gap-2"
+                            onClick={() => {
+                              setSelectedClient(c);
+                              setClientSearch(c.nombre);
+                              updateField('cliente', c.nombre);
+                              setShowClientDrop(false);
+                            }}
+                          >
+                            {selectedClient?.id === c.id && <Check className="w-3.5 h-3.5 text-primary flex-shrink-0" />}
+                            {c.nombre}
+                          </button>
+                        ))}
+                        {clientSearch.trim() && !inventoryClients.find(c => c.nombre.toLowerCase() === clientSearch.toLowerCase()) && (
+                          <div className="px-3 py-2 text-xs text-blue-600 flex items-center gap-1 border-t">
+                            <Plus className="w-3 h-3" />
+                            Se creará: <strong className="ml-1">"{clientSearch.trim()}"</strong>
+                          </div>
+                        )}
+                        {filteredClients.length === 0 && !clientSearch.trim() && (
+                          <p className="px-3 py-2 text-sm text-muted-foreground">Escribe para buscar...</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  {selectedClient && (
+                    <p className="text-xs text-green-600 flex items-center gap-1">
+                      <Check className="w-3 h-3" /> Cliente existente vinculado
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="space-y-2">
