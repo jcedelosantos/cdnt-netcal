@@ -59,7 +59,7 @@ export default function TecnicosPage() {
       ]);
       if (tRes.ok) setTecnicos(await tRes.json());
       if (jRes.ok) setJornadas(await jRes.json());
-      if (pRes.ok) setProyectos(await pRes.json());
+      if (pRes.ok) { const pData = await pRes.json(); setProyectos(Array.isArray(pData) ? pData : (pData.data ?? [])); }
     } catch (e) {
       console.error(e);
     } finally {
