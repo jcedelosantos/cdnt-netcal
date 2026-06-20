@@ -64,6 +64,23 @@ export default function PagosDashboard({ tecnicos, jornadas, onRefresh }: Props)
     loadPeriodos();
   };
 
+  const [revirtiendo, setRevirtiendo] = useState('');
+
+  const handleRevertir = async (p: any) => {
+    if (!confirm(`¿Revertir el cierre de "${p.nombre}"?\n\nLas jornadas quedarán sin pagar y los anticipos aplicados volverán a estar pendientes. Podrás procesar el cierre nuevamente.`)) return;
+    setRevirtiendo(p.id);
+    const res = await fetch(`/api/periodos-pago/${p.id}/revertir`, { method: 'POST' });
+    const data = await res.json();
+    setRevirtiendo('');
+    if (res.ok) {
+      alert(`Cierre revertido. ${data.jornadasLiberadas} jornada(s) liberadas.`);
+      loadPeriodos();
+      onRefresh();
+    } else {
+      alert(data.error ?? 'Error al revertir');
+    }
+  };
+
   const exportPDF = async (p: any) => {
     const { default: jsPDF } = await import('jspdf');
     const { default: autoTable } = await import('jspdf-autotable');
@@ -506,6 +523,19 @@ export default function PagosDashboard({ tecnicos, jornadas, onRefresh }: Props)
                   {p.estado === 'aprobado' && (
                     <Button size="sm" className="text-xs" onClick={() => handleEstado(p.id, 'pagado')}>
                       Marcar como pagado
+                    </Button>
+                  )}
+                  {['revision', 'aprobado'].includes(p.estado) && (
+                    <Button
+                      size="sm" variant="outline"
+                      className="text-xs text-amber-700 border-amber-300 hover:bg-amber-50"
+                      onClick={() => handleRevertir(p)}
+                      disabled={revirtiendo === p.id}
+                    >
+                      {revirtiendo === p.id
+                        ? <Loader2 className="w-3 h-3 animate-spin mr-1" />
+                        : null}
+                      Rehacer cierre
                     </Button>
                   )}
                   {!['pagado', 'anulado'].includes(p.estado) && (
