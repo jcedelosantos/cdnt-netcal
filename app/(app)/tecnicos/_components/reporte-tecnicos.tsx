@@ -46,14 +46,17 @@ export default function ReporteTecnicos({ tecnicos, jornadas, proyectos }: Props
   const totalDias = filtered.reduce((s, j) => s + (j.diasTrabajados ?? 1), 0);
   const totalHE = filtered.reduce((s, j) => s + (j.horasExtra || 0), 0);
 
+  const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  const fmtD = (s: string) => { const d = new Date(s + 'T12:00:00'); return `${d.getDate()} ${MESES[d.getMonth()]}`; };
   const fmtRango = (j: any) => {
-    const start = new Date(j.fecha).toLocaleDateString('es-DO', { day: '2-digit', month: 'short' });
-    if (!j.fechaFin && (j.diasTrabajados ?? 1) <= 1) return start;
+    const startStr = j.fecha?.split('T')[0];
+    if (!j.fechaFin && (j.diasTrabajados ?? 1) <= 1) return fmtD(startStr);
     const endStr = j.fechaFin
       ? j.fechaFin.split('T')[0]
-      : (() => { const d = new Date(j.fecha); d.setDate(d.getDate() + (j.diasTrabajados - 1)); return d.toISOString().split('T')[0]; })();
-    const end = new Date(endStr + 'T12:00:00').toLocaleDateString('es-DO', { day: '2-digit', month: 'short' });
-    return `${start} → ${end}`;
+      : (() => { const d = new Date(startStr + 'T12:00:00'); d.setDate(d.getDate() + (j.diasTrabajados - 1)); return d.toISOString().split('T')[0]; })();
+    const d1 = new Date(startStr + 'T12:00:00'), d2 = new Date(endStr + 'T12:00:00');
+    if (d1.getMonth() === d2.getMonth()) return `${d1.getDate()}–${d2.getDate()} ${MESES[d1.getMonth()]}`;
+    return `${fmtD(startStr)} – ${fmtD(endStr)}`;
   };
 
   const exportExcel = async () => {
@@ -117,7 +120,8 @@ export default function ReporteTecnicos({ tecnicos, jornadas, proyectos }: Props
     doc.text('Reporte de Técnicos y Jornadas', 14, 16);
     doc.setFontSize(9);
     doc.setTextColor(100);
-    doc.text(`Generado: ${new Date().toLocaleDateString('es-DO', { year: 'numeric', month: 'long', day: 'numeric' })} · ${filtered.length} registros`, 14, 22);
+    const hoy = new Date(); const fmtHoy = `${hoy.getDate()} ${MESES[hoy.getMonth()]} ${hoy.getFullYear()}`;
+    doc.text(`Generado: ${fmtHoy} · ${filtered.length} registros`, 14, 22);
 
     autoTable(doc, {
       startY: 28,
