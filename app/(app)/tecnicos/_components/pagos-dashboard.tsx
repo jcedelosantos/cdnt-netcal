@@ -71,37 +71,8 @@ export default function PagosDashboard({ tecnicos, jornadas, onRefresh }: Props)
     const PRI: [number, number, number] = [21, 100, 175];
     const pageW = doc.internal.pageSize.getWidth();
 
-    // ── Encabezado empresa ──────────────────────────────────────────
-    let logoH = 0;
-    if (empresa.empresaLogo) {
-      try {
-        const ext = empresa.empresaLogo.startsWith('data:image/png') ? 'PNG' : 'JPEG';
-        doc.addImage(empresa.empresaLogo, ext, 14, 10, 28, 28);
-        logoH = 30;
-      } catch (_) {}
-    }
-
-    const textX = empresa.empresaLogo ? 46 : 14;
-    doc.setFontSize(15);
-    doc.setTextColor(...PRI);
-    doc.setFont('helvetica', 'bold');
-    doc.text(empresa.empresaNombre || 'Mi Empresa', textX, 18);
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8.5);
-    doc.setTextColor(80);
-    let infoY = 24;
-    if (empresa.empresaRNC)       { doc.text(`RNC: ${empresa.empresaRNC}`, textX, infoY); infoY += 5; }
-    if (empresa.empresaTelefono)  { doc.text(`Tel: ${empresa.empresaTelefono}`, textX, infoY); infoY += 5; }
-    if (empresa.empresaDireccion) { doc.text(empresa.empresaDireccion, textX, infoY); infoY += 5; }
-    if (empresa.empresaEmail)     { doc.text(empresa.empresaEmail, textX, infoY); }
-
-    const headerH = Math.max(logoH, infoY) + 4;
-
-    // Línea separadora azul
-    doc.setDrawColor(...PRI);
-    doc.setLineWidth(0.8);
-    doc.line(14, headerH, pageW - 14, headerH);
+    // Encabezado empresa
+    const headerH = await buildHeader(doc, pageW);
 
     // ── Título del documento ────────────────────────────────────────
     const titleY = headerH + 10;
@@ -209,6 +180,166 @@ export default function PagosDashboard({ tecnicos, jornadas, onRefresh }: Props)
 
     const filename = `nomina-${p.nombre.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}.pdf`;
     doc.save(filename);
+  };
+
+  // ── Helper: encabezado empresa reutilizable ─────────────────────────────────
+  const buildHeader = async (doc: any, pageW: number) => {
+    const PRI: [number, number, number] = [21, 100, 175];
+    let logoH = 0;
+    if (empresa.empresaLogo) {
+      try {
+        const ext = empresa.empresaLogo.startsWith('data:image/png') ? 'PNG' : 'JPEG';
+        doc.addImage(empresa.empresaLogo, ext, 14, 10, 26, 26);
+        logoH = 28;
+      } catch (_) {}
+    }
+    const textX = empresa.empresaLogo ? 44 : 14;
+    doc.setFontSize(14); doc.setTextColor(...PRI); doc.setFont('helvetica', 'bold');
+    doc.text(empresa.empresaNombre || 'Mi Empresa', textX, 18);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(80);
+    let y = 24;
+    if (empresa.empresaRNC)       { doc.text(`RNC: ${empresa.empresaRNC}`, textX, y); y += 4.5; }
+    if (empresa.empresaTelefono)  { doc.text(`Tel: ${empresa.empresaTelefono}`, textX, y); y += 4.5; }
+    if (empresa.empresaDireccion) { doc.text(empresa.empresaDireccion, textX, y); y += 4.5; }
+    if (empresa.empresaEmail)     { doc.text(empresa.empresaEmail, textX, y); y += 4.5; }
+    const headerH = Math.max(logoH, y) + 2;
+    doc.setDrawColor(...PRI); doc.setLineWidth(0.7);
+    doc.line(14, headerH, pageW - 14, headerH);
+    return headerH;
+  };
+
+  // ── PDF individual por técnico ──────────────────────────────────────────────
+  const exportPDFTecnico = async (p: any, d: any) => {
+    const { default: jsPDF } = await import('jspdf');
+    const { default: autoTable } = await import('jspdf-autotable');
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    const PRI: [number, number, number] = [21, 100, 175];
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+
+    const tec = tecnicos.find((t: any) => t.id === d.tecnicoId);
+    const jornadasTec = jornadas.filter((j: any) => j.tecnicoId === d.tecnicoId && j.periodoPagoId === p.id);
+
+    // Encabezado empresa
+    const headerH = await buildHeader(doc, pageW);
+
+    // Título
+    const titleY = headerH + 10;
+    doc.setFontSize(13); doc.setTextColor(...PRI); doc.setFont('helvetica', 'bold');
+    doc.text('RECIBO INDIVIDUAL DE PAGO', 14, titleY);
+
+    // Número de recibo (si existe)
+    doc.setFontSize(9); doc.setTextColor(100); doc.setFont('helvetica', 'normal');
+    doc.text(`Período: ${p.nombre}`, pageW - 14, titleY - 5, { align: 'right' });
+    doc.text(`${new Date(p.fechaInicio).toLocaleDateString('es-DO')} — ${new Date(p.fechaFin).toLocaleDateString('es-DO')}`, pageW - 14, titleY + 1, { align: 'right' });
+    doc.text(`Emisión: ${new Date().toLocaleDateString('es-DO', { year: 'numeric', month: 'long', day: 'numeric' })}`, pageW - 14, titleY + 7, { align: 'right' });
+
+    doc.setDrawColor(220); doc.setLineWidth(0.3);
+    doc.line(14, titleY + 11, pageW - 14, titleY + 11);
+
+    // ── Ficha del técnico ───────────────────────────────────────────
+    const fichaY = titleY + 17;
+    doc.setFillColor(247, 249, 252);
+    doc.roundedRect(14, fichaY, pageW - 28, 24, 2, 2, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...PRI);
+    doc.text(tec?.nombre ?? '—', 20, fichaY + 8);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(80);
+    doc.text(`Rol: ${tec?.rol?.nombre ?? tec?.tipoContratacion ?? '—'}`, 20, fichaY + 14);
+    if (tec?.cedula) doc.text(`Cédula: ${tec.cedula}`, 20, fichaY + 19);
+    if (tec?.telefono) doc.text(`Tel: ${tec.telefono}`, 80, fichaY + 14);
+    // Días trabajados badge
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...PRI);
+    doc.text(`${d.diasTrabajados ?? 1}`, pageW - 40, fichaY + 10, { align: 'center' });
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(120);
+    doc.text('días trabajados', pageW - 40, fichaY + 16, { align: 'center' });
+
+    // ── Tabla de jornadas ───────────────────────────────────────────
+    const tableY = fichaY + 30;
+    const fmt = (s: string) => new Date(s + 'T12:00:00').toLocaleDateString('es-DO', { day: '2-digit', month: 'short', year: '2-digit' });
+    const jorRows = jornadasTec.map((j: any) => {
+      const start = j.fecha?.split('T')[0];
+      const end = j.fechaFin ? j.fechaFin.split('T')[0] : start;
+      const periodo = start === end ? fmt(start) : `${fmt(start)} → ${fmt(end)}`;
+      return [
+        periodo,
+        String(j.diasTrabajados ?? 1),
+        j.project?.nombre ?? '—',
+        j.tipoJornada?.replace('_', ' ') ?? '—',
+        `RD$ ${(j.tarifaDia || 0).toLocaleString()}`,
+        j.horasExtra > 0 ? `${j.horasExtra}h` : '—',
+        `RD$ ${(j.totalJornada || 0).toLocaleString()}`,
+      ];
+    });
+
+    autoTable(doc, {
+      startY: tableY,
+      head: [['Período', 'Días', 'Proyecto', 'Tipo jornada', 'Tarifa/día', 'H. Extra', 'Total']],
+      body: jorRows,
+      styles: { fontSize: 8.5, cellPadding: 3 },
+      headStyles: { fillColor: PRI, textColor: 255, fontStyle: 'bold', fontSize: 8 },
+      alternateRowStyles: { fillColor: [247, 249, 252] },
+      columnStyles: {
+        0: { cellWidth: 36 },
+        1: { cellWidth: 12, halign: 'center' },
+        2: { cellWidth: 48 },
+        3: { cellWidth: 26 },
+        4: { cellWidth: 24, halign: 'right' },
+        5: { cellWidth: 16, halign: 'center' },
+        6: { cellWidth: 24, halign: 'right', fontStyle: 'bold' },
+      },
+    });
+
+    // ── Desglose de pago ────────────────────────────────────────────
+    const sumY = (doc as any).lastAutoTable.finalY + 8;
+    const colL = 110;
+
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(80);
+    doc.text('Pago bruto:', colL, sumY);
+    doc.text(`RD$ ${(d.pagoBruto || 0).toLocaleString()}`, pageW - 14, sumY, { align: 'right' });
+    let offsetY = 6;
+    if (d.bonificaciones > 0) {
+      doc.text('Bonificaciones:', colL, sumY + offsetY);
+      doc.text(`+ RD$ ${d.bonificaciones.toLocaleString()}`, pageW - 14, sumY + offsetY, { align: 'right' });
+      offsetY += 6;
+    }
+    if (d.anticipos > 0) {
+      doc.text('Anticipos descontados:', colL, sumY + offsetY);
+      doc.text(`- RD$ ${d.anticipos.toLocaleString()}`, pageW - 14, sumY + offsetY, { align: 'right' });
+      offsetY += 6;
+    }
+    if (d.descuentos > 0) {
+      doc.text('Otros descuentos:', colL, sumY + offsetY);
+      doc.text(`- RD$ ${d.descuentos.toLocaleString()}`, pageW - 14, sumY + offsetY, { align: 'right' });
+      offsetY += 6;
+    }
+    // Caja neto
+    const netoBoxY = sumY + offsetY + 2;
+    doc.setFillColor(...PRI);
+    doc.roundedRect(colL - 4, netoBoxY - 5, pageW - 14 - colL + 4, 12, 2, 2, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(255);
+    doc.text('NETO A PAGAR:', colL, netoBoxY + 2);
+    doc.text(`RD$ ${(d.pagoNeto || 0).toLocaleString()}`, pageW - 17, netoBoxY + 2, { align: 'right' });
+
+    // ── Líneas de firma ─────────────────────────────────────────────
+    const firmaY = netoBoxY + 28;
+    doc.setDrawColor(150); doc.setLineWidth(0.4);
+    doc.line(14, firmaY, 85, firmaY);
+    doc.line(pageW - 85, firmaY, pageW - 14, firmaY);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(120);
+    doc.text('Firma del técnico', 49, firmaY + 5, { align: 'center' });
+    doc.text(tec?.nombre ?? '', 49, firmaY + 10, { align: 'center' });
+    doc.text('Autorizado por empresa', pageW - 49, firmaY + 5, { align: 'center' });
+    doc.text(empresa.empresaNombre || '', pageW - 49, firmaY + 10, { align: 'center' });
+
+    // ── Pie ─────────────────────────────────────────────────────────
+    doc.setDrawColor(200); doc.setLineWidth(0.3);
+    doc.line(14, pageH - 14, pageW - 14, pageH - 14);
+    doc.setFontSize(7.5); doc.setTextColor(150);
+    doc.text(empresa.empresaNombre || '', 14, pageH - 8);
+    doc.text(`Generado con RedCalc · ${new Date().toLocaleDateString('es-DO')}`, pageW - 14, pageH - 8, { align: 'right' });
+
+    const nombre = (tec?.nombre ?? 'tecnico').replace(/\s+/g, '-').toLowerCase();
+    doc.save(`recibo-${nombre}-${p.nombre.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}.pdf`);
   };
 
   const pendientesAnticipo = anticipos.filter(a => a.estado === 'pendiente');
@@ -328,10 +459,19 @@ export default function PagosDashboard({ tecnicos, jornadas, onRefresh }: Props)
                         return ini === fin ? ini : `${ini} → ${fin}`;
                       })() : null;
                       return (
-                        <div key={d.id} className="text-xs bg-muted/40 rounded-lg p-2">
-                          <p className="font-medium truncate">{tec?.nombre ?? d.tecnicoId}</p>
-                          {fechasRango && <p className="text-primary/80 font-medium">{fechasRango}</p>}
-                          <p className="text-muted-foreground">{d.diasTrabajados}d · RD$ {d.pagoNeto.toLocaleString()}</p>
+                        <div key={d.id} className="text-xs bg-muted/40 rounded-lg p-2 flex items-start justify-between gap-1">
+                          <div className="min-w-0">
+                            <p className="font-medium truncate">{tec?.nombre ?? d.tecnicoId}</p>
+                            {fechasRango && <p className="text-primary/80 font-medium">{fechasRango}</p>}
+                            <p className="text-muted-foreground">{d.diasTrabajados}d · RD$ {d.pagoNeto.toLocaleString()}</p>
+                          </div>
+                          <button
+                            onClick={() => exportPDFTecnico(p, d)}
+                            title="Descargar recibo individual"
+                            className="shrink-0 p-1 rounded hover:bg-primary/10 text-primary/60 hover:text-primary transition-colors"
+                          >
+                            <FileText className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       );
                     })}
