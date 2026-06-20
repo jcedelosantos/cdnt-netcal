@@ -58,11 +58,23 @@ export default function CalendarioView({ jornadas, tecnicos, onRefresh, onNewJor
     return new Date(current.year, current.month, d);
   });
 
+  // Calcula la fecha fin efectiva: usa fechaFin si existe, sino calcula desde diasTrabajados
+  const getEffectiveEnd = (j: any): string => {
+    const start = j.fecha?.split('T')[0];
+    if (j.fechaFin) return j.fechaFin.split('T')[0];
+    if ((j.diasTrabajados ?? 1) > 1) {
+      const d = new Date(start + 'T12:00:00');
+      d.setDate(d.getDate() + j.diasTrabajados - 1);
+      return d.toISOString().split('T')[0];
+    }
+    return start;
+  };
+
   const getJornadasForDay = (date: Date) => {
     const key = date.toISOString().split('T')[0];
     return filteredJornadas.filter(j => {
       const start = j.fecha?.split('T')[0];
-      const end = j.fechaFin ? j.fechaFin.split('T')[0] : start;
+      const end = getEffectiveEnd(j);
       return key >= start && key <= end;
     });
   };
@@ -75,7 +87,7 @@ export default function CalendarioView({ jornadas, tecnicos, onRefresh, onNewJor
 
   const selectedJornadas = selectedDay ? filteredJornadas.filter(j => {
     const start = j.fecha?.split('T')[0];
-    const end = j.fechaFin ? j.fechaFin.split('T')[0] : start;
+    const end = getEffectiveEnd(j);
     return selectedDay >= start && selectedDay <= end;
   }) : [];
 
@@ -85,12 +97,12 @@ export default function CalendarioView({ jornadas, tecnicos, onRefresh, onNewJor
     for (let i = 0; i < filteredJornadas.length; i++) {
       const a = filteredJornadas[i];
       const aStart = a.fecha?.split('T')[0];
-      const aEnd = a.fechaFin ? a.fechaFin.split('T')[0] : aStart;
+      const aEnd = getEffectiveEnd(a);
       for (let k = i + 1; k < filteredJornadas.length; k++) {
         const b = filteredJornadas[k];
         if (a.tecnicoId !== b.tecnicoId) continue;
         const bStart = b.fecha?.split('T')[0];
-        const bEnd = b.fechaFin ? b.fechaFin.split('T')[0] : bStart;
+        const bEnd = getEffectiveEnd(b);
         if (aStart <= bEnd && aEnd >= bStart) {
           conflictIds.add(a.id);
           conflictIds.add(b.id);
@@ -199,7 +211,23 @@ export default function CalendarioView({ jornadas, tecnicos, onRefresh, onNewJor
                   />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium">{j.tecnico?.nombre}</p>
-                    <p className="text-xs text-muted-foreground truncate">{j.project?.nombre} — {j.project?.cliente}</p>
+                    <p className="text-xs text-muted-foreground truncate">{j.project?.nombre}{j.project?.cliente ? ` — ${j.project.cliente}` : ''}</p>
+                    {(() => {
+                      const end = getEffectiveEnd(j);
+                      const start = j.fecha?.split('T')[0];
+                      const dias = j.diasTrabajados ?? 1;
+                      if (end !== start) {
+                        return (
+                          <p className="text-xs text-primary font-medium">
+                            {new Date(start + 'T12:00:00').toLocaleDateString('es-DO', { day: '2-digit', month: 'short' })}
+                            {' → '}
+                            {new Date(end + 'T12:00:00').toLocaleDateString('es-DO', { day: '2-digit', month: 'short' })}
+                            {' · '}{dias} días
+                          </p>
+                        );
+                      }
+                      return null;
+                    })()}
                     {j.horaEntrada && <p className="text-xs text-muted-foreground">{j.horaEntrada} — {j.horaSalida}</p>}
                   </div>
                   <div className="text-right">

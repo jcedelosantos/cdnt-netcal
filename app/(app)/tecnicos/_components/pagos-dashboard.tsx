@@ -156,9 +156,19 @@ export default function PagosDashboard({ tecnicos, jornadas, onRefresh }: Props)
                   <div className="mt-3 pt-3 border-t grid grid-cols-2 md:grid-cols-3 gap-2">
                     {p.detalles.map((d: any) => {
                       const tec = tecnicos.find(t => t.id === d.tecnicoId);
+                      // Jornadas de este técnico en este período
+                      const jornadasTec = jornadas.filter(j => j.tecnicoId === d.tecnicoId && j.periodoPagoId === p.id);
+                      const fechasRango = jornadasTec.length > 0 ? (() => {
+                        const starts = jornadasTec.map(j => j.fecha?.split('T')[0]).sort();
+                        const ends = jornadasTec.map(j => j.fechaFin ? j.fechaFin.split('T')[0] : j.fecha?.split('T')[0]).sort();
+                        const ini = new Date(starts[0] + 'T12:00:00').toLocaleDateString('es-DO', { day: '2-digit', month: 'short' });
+                        const fin = new Date(ends[ends.length - 1] + 'T12:00:00').toLocaleDateString('es-DO', { day: '2-digit', month: 'short' });
+                        return ini === fin ? ini : `${ini} → ${fin}`;
+                      })() : null;
                       return (
                         <div key={d.id} className="text-xs bg-muted/40 rounded-lg p-2">
                           <p className="font-medium truncate">{tec?.nombre ?? d.tecnicoId}</p>
+                          {fechasRango && <p className="text-primary/80 font-medium">{fechasRango}</p>}
                           <p className="text-muted-foreground">{d.diasTrabajados}d · RD$ {d.pagoNeto.toLocaleString()}</p>
                         </div>
                       );

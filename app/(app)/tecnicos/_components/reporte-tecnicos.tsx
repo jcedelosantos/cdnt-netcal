@@ -42,8 +42,19 @@ export default function ReporteTecnicos({ tecnicos, jornadas, proyectos }: Props
   }, [filtered]);
 
   const totalBruto = filtered.reduce((s, j) => s + (j.totalJornada || 0), 0);
-  const totalDias = filtered.length;
+  const totalRegistros = filtered.length;
+  const totalDias = filtered.reduce((s, j) => s + (j.diasTrabajados ?? 1), 0);
   const totalHE = filtered.reduce((s, j) => s + (j.horasExtra || 0), 0);
+
+  const fmtRango = (j: any) => {
+    const start = new Date(j.fecha).toLocaleDateString('es-DO', { day: '2-digit', month: 'short' });
+    if (!j.fechaFin && (j.diasTrabajados ?? 1) <= 1) return start;
+    const endStr = j.fechaFin
+      ? j.fechaFin.split('T')[0]
+      : (() => { const d = new Date(j.fecha); d.setDate(d.getDate() + (j.diasTrabajados - 1)); return d.toISOString().split('T')[0]; })();
+    const end = new Date(endStr + 'T12:00:00').toLocaleDateString('es-DO', { day: '2-digit', month: 'short' });
+    return `${start} → ${end}`;
+  };
 
   const exportExcel = async () => {
     const ExcelJS = (await import('exceljs')).default;
@@ -52,7 +63,8 @@ export default function ReporteTecnicos({ tecnicos, jornadas, proyectos }: Props
     const ws = wb.addWorksheet('Reporte Técnicos');
 
     ws.columns = [
-      { header: 'Fecha', key: 'fecha', width: 14 },
+      { header: 'Período', key: 'fecha', width: 22 },
+      { header: 'Días', key: 'dias', width: 8 },
       { header: 'Técnico', key: 'tecnico', width: 24 },
       { header: 'Proyecto', key: 'proyecto', width: 28 },
       { header: 'Tipo Jornada', key: 'tipo', width: 16 },
@@ -71,7 +83,8 @@ export default function ReporteTecnicos({ tecnicos, jornadas, proyectos }: Props
 
     for (const j of filtered) {
       ws.addRow({
-        fecha: new Date(j.fecha).toLocaleDateString('es-DO'),
+        fecha: fmtRango(j),
+        dias: j.diasTrabajados ?? 1,
         tecnico: j.tecnico?.nombre ?? '',
         proyecto: j.project?.nombre ?? '',
         tipo: j.tipoJornada,
@@ -86,7 +99,7 @@ export default function ReporteTecnicos({ tecnicos, jornadas, proyectos }: Props
     }
 
     // Totals row
-    const totRow = ws.addRow({ fecha: 'TOTAL', tecnico: '', proyecto: '', tipo: '', horas: '', hextra: totalHE, tarifa: '', bono: '', viaticos: '', total: totalBruto, estado: `${totalDias} jornadas` });
+    const totRow = ws.addRow({ fecha: 'TOTAL', dias: totalDias, tecnico: '', proyecto: '', tipo: '', horas: '', hextra: totalHE, tarifa: '', bono: '', viaticos: '', total: totalBruto, estado: `${totalRegistros} registros` });
     totRow.font = { bold: true };
     totRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3F4F6' } };
 
@@ -108,13 +121,13 @@ export default function ReporteTecnicos({ tecnicos, jornadas, proyectos }: Props
 
     autoTable(doc, {
       startY: 28,
-      head: [['Fecha', 'Técnico', 'Proyecto', 'Tipo', 'Horas', 'H.Extra', 'Total RD$', 'Estado']],
+      head: [['Período', 'Días', 'Técnico', 'Proyecto', 'Tipo', 'H.Extra', 'Total RD$', 'Estado']],
       body: filtered.map(j => [
-        new Date(j.fecha).toLocaleDateString('es-DO'),
+        fmtRango(j),
+        j.diasTrabajados ?? 1,
         j.tecnico?.nombre ?? '—',
         j.project?.nombre ?? '—',
         j.tipoJornada,
-        j.horasTotales,
         j.horasExtra,
         (j.totalJornada || 0).toLocaleString(),
         j.estado,
@@ -122,7 +135,7 @@ export default function ReporteTecnicos({ tecnicos, jornadas, proyectos }: Props
       styles: { fontSize: 7.5, cellPadding: 3 },
       headStyles: { fillColor: [21, 100, 175], textColor: 255, fontStyle: 'bold' },
       alternateRowStyles: { fillColor: [248, 250, 252] },
-      foot: [[`Total: ${totalDias} jornadas`, '', '', '', '', `${totalHE}h ext`, `RD$ ${totalBruto.toLocaleString()}`, '']],
+      foot: [[`Total: ${totalRegistros} registros`, `${totalDias}d`, '', '', '', `${totalHE}h ext`, `RD$ ${totalBruto.toLocaleString()}`, '']],
       footStyles: { fillColor: [230, 235, 245], fontStyle: 'bold' },
     });
 
@@ -168,9 +181,13 @@ export default function ReporteTecnicos({ tecnicos, jornadas, proyectos }: Props
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-white border rounded-xl p-4 text-center">
-          <p className="text-xs text-muted-foreground">Jornadas</p>
+          <p className="text-xs text-muted-foreground">Registros</p>
+          <p className="text-2xl font-bold">{totalRegistros}</p>
+        </div>
+        <div className="bg-white border rounded-xl p-4 text-center">
+          <p className="text-xs text-muted-foreground">Días trabajados</p>
           <p className="text-2xl font-bold">{totalDias}</p>
         </div>
         <div className="bg-white border rounded-xl p-4 text-center">
@@ -217,7 +234,8 @@ export default function ReporteTecnicos({ tecnicos, jornadas, proyectos }: Props
                 <table className="w-full text-xs">
                   <thead className="text-muted-foreground">
                     <tr className="border-b">
-                      <th className="text-left px-4 py-2">Fecha</th>
+                      <th className="text-left px-4 py-2">Período</th>
+                      <th className="text-center px-4 py-2 hidden sm:table-cell">Días</th>
                       <th className="text-left px-4 py-2 hidden sm:table-cell">Proyecto</th>
                       <th className="text-left px-4 py-2 hidden md:table-cell">Tipo</th>
                       <th className="text-right px-4 py-2">Total</th>
@@ -227,7 +245,8 @@ export default function ReporteTecnicos({ tecnicos, jornadas, proyectos }: Props
                   <tbody className="divide-y">
                     {tj.map(j => (
                       <tr key={j.id} className="hover:bg-muted/10">
-                        <td className="px-4 py-2">{new Date(j.fecha).toLocaleDateString('es-DO', { day: '2-digit', month: 'short' })}</td>
+                        <td className="px-4 py-2 whitespace-nowrap">{fmtRango(j)}</td>
+                        <td className="px-4 py-2 text-center hidden sm:table-cell font-medium">{j.diasTrabajados ?? 1}</td>
                         <td className="px-4 py-2 hidden sm:table-cell text-muted-foreground truncate max-w-[180px]">{j.project?.nombre}</td>
                         <td className="px-4 py-2 hidden md:table-cell capitalize">{j.tipoJornada}</td>
                         <td className="px-4 py-2 text-right font-semibold">RD$ {(j.totalJornada || 0).toLocaleString()}</td>
