@@ -54,7 +54,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
     for (const [tecnicoId, jorns] of Object.entries(byTecnico)) {
       const tecnico = jorns[0].tecnico;
-      const diasTrabajados = jorns.length;
+      const diasTrabajados = jorns.reduce((s, j) => s + (j.diasTrabajados ?? 1), 0);
       const horasNormales = jorns.reduce((s, j) => s + j.horasTotales, 0);
       const horasExtra = jorns.reduce((s, j) => s + j.horasExtra, 0);
       const salarioBase = jorns.reduce((s, j) => s + j.tarifaDia, 0);

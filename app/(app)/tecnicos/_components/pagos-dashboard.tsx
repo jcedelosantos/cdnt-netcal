@@ -28,14 +28,17 @@ export default function PagosDashboard({ tecnicos, jornadas, onRefresh }: Props)
   const [showAnticipoForm, setShowAnticipoForm] = useState(false);
   const [selectedPeriodo, setSelectedPeriodo] = useState<any>(null);
   const [cerrando, setCerrando] = useState('');
+  const [empresa, setEmpresa] = useState<any>({});
 
   const loadPeriodos = async () => {
-    const [pRes, aRes] = await Promise.all([
+    const [pRes, aRes, cfgRes] = await Promise.all([
       fetch('/api/periodos-pago'),
       fetch('/api/anticipos'),
+      fetch('/api/configuracion'),
     ]);
     if (pRes.ok) setPeriodos(await pRes.json());
     if (aRes.ok) setAnticipos(await aRes.json());
+    if (cfgRes.ok) { const d = await cfgRes.json(); setEmpresa(d.config ?? {}); }
     setLoading(false);
   };
 
@@ -65,81 +68,146 @@ export default function PagosDashboard({ tecnicos, jornadas, onRefresh }: Props)
     const { default: jsPDF } = await import('jspdf');
     const { default: autoTable } = await import('jspdf-autotable');
     const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    const PRI: [number, number, number] = [21, 100, 175];
+    const pageW = doc.internal.pageSize.getWidth();
 
-    // Header
-    doc.setFontSize(16);
-    doc.setTextColor(21, 100, 175);
-    doc.text('Comprobante de Pago — Nómina', 14, 18);
-
-    doc.setFontSize(10);
-    doc.setTextColor(80);
-    doc.text(`Período: ${p.nombre}`, 14, 27);
-    doc.text(`Fechas: ${new Date(p.fechaInicio).toLocaleDateString('es-DO')} — ${new Date(p.fechaFin).toLocaleDateString('es-DO')}`, 14, 33);
-    doc.text(`Estado: ${p.estado.toUpperCase()}`, 14, 39);
-    doc.text(`Generado: ${new Date().toLocaleDateString('es-DO', { year: 'numeric', month: 'long', day: 'numeric' })}`, 14, 45);
-
-    // Separator line
-    doc.setDrawColor(21, 100, 175);
-    doc.setLineWidth(0.5);
-    doc.line(14, 50, 196, 50);
-
-    // Detail table per technician
-    if (p.detalles && p.detalles.length > 0) {
-      const rows = p.detalles.map((d: any) => {
-        const tec = tecnicos.find((t: any) => t.id === d.tecnicoId);
-        const jornadasTec = jornadas.filter((j: any) => j.tecnicoId === d.tecnicoId && j.periodoPagoId === p.id);
-        const starts = jornadasTec.map((j: any) => j.fecha?.split('T')[0]).sort();
-        const ends = jornadasTec.map((j: any) => (j.fechaFin ? j.fechaFin.split('T')[0] : j.fecha?.split('T')[0])).sort();
-        const rango = starts.length > 0
-          ? `${new Date(starts[0] + 'T12:00:00').toLocaleDateString('es-DO', { day: '2-digit', month: 'short' })} → ${new Date(ends[ends.length - 1] + 'T12:00:00').toLocaleDateString('es-DO', { day: '2-digit', month: 'short' })}`
-          : '—';
-        return [
-          tec?.nombre ?? d.tecnicoId,
-          rango,
-          d.diasTrabajados,
-          `RD$ ${(d.pagoBruto || 0).toLocaleString()}`,
-          d.anticipos > 0 ? `- RD$ ${d.anticipos.toLocaleString()}` : '—',
-          d.descuentos > 0 ? `- RD$ ${d.descuentos.toLocaleString()}` : '—',
-          `RD$ ${(d.pagoNeto || 0).toLocaleString()}`,
-        ];
-      });
-
-      autoTable(doc, {
-        startY: 56,
-        head: [['Técnico', 'Período', 'Días', 'Bruto', 'Anticipos', 'Descuentos', 'Neto']],
-        body: rows,
-        styles: { fontSize: 9, cellPadding: 4 },
-        headStyles: { fillColor: [21, 100, 175], textColor: 255, fontStyle: 'bold' },
-        alternateRowStyles: { fillColor: [248, 250, 252] },
-        columnStyles: {
-          0: { cellWidth: 40 },
-          1: { cellWidth: 32 },
-          2: { cellWidth: 14, halign: 'center' },
-          3: { cellWidth: 28, halign: 'right' },
-          4: { cellWidth: 28, halign: 'right' },
-          5: { cellWidth: 28, halign: 'right' },
-          6: { cellWidth: 28, halign: 'right', fontStyle: 'bold' },
-        },
-      });
-
-      // Totals summary
-      const finalY = (doc as any).lastAutoTable.finalY + 8;
-      doc.setFontSize(10);
-      doc.setTextColor(40);
-      doc.text(`Total bruto:`, 120, finalY);
-      doc.text(`RD$ ${(p.totalBruto || 0).toLocaleString()}`, 196, finalY, { align: 'right' });
-      if (p.totalAnticipos > 0) {
-        doc.text(`Anticipos aplicados:`, 120, finalY + 6);
-        doc.text(`- RD$ ${(p.totalAnticipos || 0).toLocaleString()}`, 196, finalY + 6, { align: 'right' });
-      }
-      doc.setFontSize(12);
-      doc.setTextColor(21, 100, 175);
-      doc.setFont('helvetica', 'bold');
-      doc.text(`Total neto:`, 120, finalY + 14);
-      doc.text(`RD$ ${(p.totalNeto || 0).toLocaleString()}`, 196, finalY + 14, { align: 'right' });
+    // ── Encabezado empresa ──────────────────────────────────────────
+    let logoH = 0;
+    if (empresa.empresaLogo) {
+      try {
+        const ext = empresa.empresaLogo.startsWith('data:image/png') ? 'PNG' : 'JPEG';
+        doc.addImage(empresa.empresaLogo, ext, 14, 10, 28, 28);
+        logoH = 30;
+      } catch (_) {}
     }
 
-    const filename = `nomina-${p.nombre.replace(/\s+/g, '-').toLowerCase()}.pdf`;
+    const textX = empresa.empresaLogo ? 46 : 14;
+    doc.setFontSize(15);
+    doc.setTextColor(...PRI);
+    doc.setFont('helvetica', 'bold');
+    doc.text(empresa.empresaNombre || 'Mi Empresa', textX, 18);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(80);
+    let infoY = 24;
+    if (empresa.empresaRNC)       { doc.text(`RNC: ${empresa.empresaRNC}`, textX, infoY); infoY += 5; }
+    if (empresa.empresaTelefono)  { doc.text(`Tel: ${empresa.empresaTelefono}`, textX, infoY); infoY += 5; }
+    if (empresa.empresaDireccion) { doc.text(empresa.empresaDireccion, textX, infoY); infoY += 5; }
+    if (empresa.empresaEmail)     { doc.text(empresa.empresaEmail, textX, infoY); }
+
+    const headerH = Math.max(logoH, infoY) + 4;
+
+    // Línea separadora azul
+    doc.setDrawColor(...PRI);
+    doc.setLineWidth(0.8);
+    doc.line(14, headerH, pageW - 14, headerH);
+
+    // ── Título del documento ────────────────────────────────────────
+    const titleY = headerH + 10;
+    doc.setFontSize(13);
+    doc.setTextColor(...PRI);
+    doc.setFont('helvetica', 'bold');
+    doc.text('COMPROBANTE DE NÓMINA', 14, titleY);
+
+    // Info del período (columna derecha)
+    doc.setFontSize(9);
+    doc.setTextColor(60);
+    doc.setFont('helvetica', 'normal');
+    const estado = p.estado.toUpperCase();
+    doc.text(`Período: ${p.nombre}`, pageW - 14, titleY - 6, { align: 'right' });
+    doc.text(`${new Date(p.fechaInicio).toLocaleDateString('es-DO')} — ${new Date(p.fechaFin).toLocaleDateString('es-DO')}`, pageW - 14, titleY, { align: 'right' });
+    doc.text(`Estado: ${estado}`, pageW - 14, titleY + 5, { align: 'right' });
+    doc.text(`Emisión: ${new Date().toLocaleDateString('es-DO', { year: 'numeric', month: 'long', day: 'numeric' })}`, pageW - 14, titleY + 10, { align: 'right' });
+
+    // Línea fina gris
+    doc.setDrawColor(200);
+    doc.setLineWidth(0.3);
+    doc.line(14, titleY + 14, pageW - 14, titleY + 14);
+
+    // ── Tabla de técnicos ───────────────────────────────────────────
+    const tableY = titleY + 18;
+    const rows = (p.detalles ?? []).map((d: any) => {
+      const tec = tecnicos.find((t: any) => t.id === d.tecnicoId);
+      const jornadasTec = jornadas.filter((j: any) => j.tecnicoId === d.tecnicoId && j.periodoPagoId === p.id);
+      const starts = jornadasTec.map((j: any) => j.fecha?.split('T')[0]).sort();
+      const ends = jornadasTec.map((j: any) => (j.fechaFin ? j.fechaFin.split('T')[0] : j.fecha?.split('T')[0])).sort();
+      const fmt = (s: string) => new Date(s + 'T12:00:00').toLocaleDateString('es-DO', { day: '2-digit', month: 'short' });
+      const rango = starts.length > 0
+        ? (starts[0] === ends[ends.length - 1] ? fmt(starts[0]) : `${fmt(starts[0])} → ${fmt(ends[ends.length - 1])}`)
+        : '—';
+      return [
+        tec?.nombre ?? '—',
+        tec?.rol?.nombre ?? tec?.tipoContratacion ?? '—',
+        rango,
+        String(d.diasTrabajados ?? 1),
+        `RD$ ${(d.pagoBruto || 0).toLocaleString()}`,
+        d.anticipos > 0  ? `- RD$ ${d.anticipos.toLocaleString()}`  : '—',
+        d.descuentos > 0 ? `- RD$ ${d.descuentos.toLocaleString()}` : '—',
+        `RD$ ${(d.pagoNeto || 0).toLocaleString()}`,
+      ];
+    });
+
+    autoTable(doc, {
+      startY: tableY,
+      head: [['Técnico', 'Rol', 'Período trabajado', 'Días', 'Bruto', 'Anticipos', 'Descuentos', 'Neto a pagar']],
+      body: rows,
+      styles: { fontSize: 8.5, cellPadding: 3.5 },
+      headStyles: { fillColor: PRI, textColor: 255, fontStyle: 'bold', fontSize: 8 },
+      alternateRowStyles: { fillColor: [247, 249, 252] },
+      columnStyles: {
+        0: { cellWidth: 38 },
+        1: { cellWidth: 28 },
+        2: { cellWidth: 32 },
+        3: { cellWidth: 12, halign: 'center' },
+        4: { cellWidth: 26, halign: 'right' },
+        5: { cellWidth: 22, halign: 'right' },
+        6: { cellWidth: 22, halign: 'right' },
+        7: { cellWidth: 26, halign: 'right', fontStyle: 'bold' },
+      },
+    });
+
+    // ── Resumen de totales ──────────────────────────────────────────
+    const finalY = (doc as any).lastAutoTable.finalY + 8;
+    const colL = 120;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(80);
+    doc.text('Total bruto:', colL, finalY);
+    doc.text(`RD$ ${(p.totalBruto || 0).toLocaleString()}`, pageW - 14, finalY, { align: 'right' });
+
+    if (p.totalAnticipos > 0) {
+      doc.text('Anticipos aplicados:', colL, finalY + 6);
+      doc.text(`- RD$ ${(p.totalAnticipos).toLocaleString()}`, pageW - 14, finalY + 6, { align: 'right' });
+    }
+    if (p.totalDescuentos > 0) {
+      doc.text('Descuentos:', colL, finalY + 12);
+      doc.text(`- RD$ ${(p.totalDescuentos).toLocaleString()}`, pageW - 14, finalY + 12, { align: 'right' });
+    }
+
+    // Caja total neto
+    const netoY = finalY + (p.totalAnticipos > 0 || p.totalDescuentos > 0 ? 18 : 8);
+    doc.setFillColor(...PRI);
+    doc.roundedRect(colL - 4, netoY - 6, pageW - 14 - colL + 4, 12, 2, 2, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10.5);
+    doc.setTextColor(255);
+    doc.text('TOTAL NETO A PAGAR:', colL, netoY + 1);
+    doc.text(`RD$ ${(p.totalNeto || 0).toLocaleString()}`, pageW - 17, netoY + 1, { align: 'right' });
+
+    // ── Pie de página ───────────────────────────────────────────────
+    const pageH = doc.internal.pageSize.getHeight();
+    doc.setDrawColor(200);
+    doc.setLineWidth(0.3);
+    doc.line(14, pageH - 16, pageW - 14, pageH - 16);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(150);
+    doc.text(empresa.empresaNombre || '', 14, pageH - 10);
+    doc.text(`Generado con RedCalc · ${new Date().toLocaleDateString('es-DO')}`, pageW - 14, pageH - 10, { align: 'right' });
+
+    const filename = `nomina-${p.nombre.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}.pdf`;
     doc.save(filename);
   };
 
