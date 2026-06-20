@@ -385,7 +385,12 @@ function JornadasTable({
           const pagada = !!j.periodoPagoId;
           return (
             <tr key={j.id} className="hover:bg-muted/20 transition-colors">
-              <td className="px-4 py-3 font-medium">{new Date(j.fecha).toLocaleDateString('es-DO', { day: '2-digit', month: 'short' })}</td>
+              <td className="px-4 py-3 font-medium">
+                <p>{new Date(j.fecha).toLocaleDateString('es-DO', { day: '2-digit', month: 'short' })}</p>
+                {(j.diasTrabajados ?? 1) > 1 && (
+                  <span className="text-[10px] font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">{j.diasTrabajados} días</span>
+                )}
+              </td>
               <td className="px-4 py-3">{j.tecnico?.nombre ?? '—'}</td>
               <td className="px-4 py-3 text-muted-foreground hidden md:table-cell truncate max-w-[180px]">{j.project?.nombre ?? '—'}</td>
               <td className="px-4 py-3 hidden lg:table-cell">

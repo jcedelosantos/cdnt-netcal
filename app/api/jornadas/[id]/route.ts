@@ -21,6 +21,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     const updated = await prisma.jornada.update({
       where: { id: params.id },
       data: {
+        diasTrabajados: data.diasTrabajados !== undefined ? Math.max(1, parseInt(data.diasTrabajados)) : existing.diasTrabajados,
         horaEntrada: data.horaEntrada !== undefined ? data.horaEntrada : existing.horaEntrada,
         horaSalida: data.horaSalida !== undefined ? data.horaSalida : existing.horaSalida,
         horasTotales: data.horasTotales !== undefined ? parseFloat(data.horasTotales) : existing.horasTotales,

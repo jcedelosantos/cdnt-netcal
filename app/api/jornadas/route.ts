@@ -6,14 +6,17 @@ import { prisma } from '@/lib/prisma';
 
 function calcTotal(data: any) {
   const tarifa = parseFloat(data.tarifaDia) || 0;
+  const dias = Math.max(1, parseInt(data.diasTrabajados) || 1);
   const tipo = data.tipoJornada || 'completa';
-  let base = tarifa;
-  if (tipo === 'media') base = tarifa * 0.5;
-  else if (tipo === 'horas') base = (parseFloat(data.horasTotales) || 0) * ((parseFloat(data.tarifaHora) || 0) || tarifa / 8);
-  else if (tipo === 'nocturna') base = tarifa * 1.35;
-  else if (tipo === 'fin_semana') base = tarifa * 1.5;
-  else if (tipo === 'feriado') base = tarifa * 2;
 
+  let tarifaPorDia = tarifa;
+  if (tipo === 'media') tarifaPorDia = tarifa * 0.5;
+  else if (tipo === 'horas') tarifaPorDia = (parseFloat(data.horasTotales) || 0) * ((parseFloat(data.tarifaHora) || 0) || tarifa / 8);
+  else if (tipo === 'nocturna') tarifaPorDia = tarifa * 1.35;
+  else if (tipo === 'fin_semana') tarifaPorDia = tarifa * 1.5;
+  else if (tipo === 'feriado') tarifaPorDia = tarifa * 2;
+
+  const base = tarifaPorDia * dias;
   const horasExtra = parseFloat(data.horasExtra) || 0;
   const tarifaHE = parseFloat(data.tarifaHoraExtra) || 0;
   const extras = horasExtra * tarifaHE;
@@ -88,6 +91,7 @@ export async function POST(request: Request) {
         projectId: data.projectId,
         asignacionId: data.asignacionId || null,
         fecha: new Date(data.fecha),
+        diasTrabajados: Math.max(1, parseInt(data.diasTrabajados) || 1),
         horaEntrada: data.horaEntrada || null,
         horaSalida: data.horaSalida || null,
         horasTotales: parseFloat(data.horasTotales) || 0,

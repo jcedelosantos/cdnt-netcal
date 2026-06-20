@@ -39,10 +39,10 @@ export default function JornadaForm({ tecnicos, proyectos, onClose, onSaved, pre
       return {
         tecnicoId: source.tecnicoId ?? '',
         projectId: source.projectId ?? '',
-        // Editar: misma fecha. Copiar: vacío para que el usuario elija
         fecha: modoEdicion
           ? (source.fecha ? source.fecha.split('T')[0] : '')
           : new Date().toISOString().split('T')[0],
+        diasTrabajados: source.diasTrabajados?.toString() ?? '1',
         horaEntrada: source.horaEntrada ?? '08:00',
         horaSalida: source.horaSalida ?? '17:00',
         horasTotales: source.horasTotales?.toString() ?? '9',
@@ -64,6 +64,7 @@ export default function JornadaForm({ tecnicos, proyectos, onClose, onSaved, pre
       tecnicoId: preselect?.tecnicoId ?? '',
       projectId: preselect?.projectId ?? '',
       fecha: preselect?.fecha ?? new Date().toISOString().split('T')[0],
+      diasTrabajados: '1',
       horaEntrada: '08:00',
       horaSalida: '17:00',
       horasTotales: '9',
@@ -102,11 +103,13 @@ export default function JornadaForm({ tecnicos, proyectos, onClose, onSaved, pre
 
   const calcTotal = () => {
     const tarifa = parseFloat(form.tarifaDia) || 0;
+    const dias = Math.max(1, parseInt(form.diasTrabajados) || 1);
     const tipo = TIPOS_JORNADA.find(t => t.value === form.tipoJornada);
-    let base = tarifa;
-    if (tipo?.mult !== null && tipo?.mult !== undefined) base = tarifa * tipo.mult;
-    else base = (parseFloat(form.horasTotales) || 0) * (tarifa / 8 || 0);
+    let tarifaPorDia = tarifa;
+    if (tipo?.mult !== null && tipo?.mult !== undefined) tarifaPorDia = tarifa * tipo.mult;
+    else tarifaPorDia = (parseFloat(form.horasTotales) || 0) * (tarifa / 8 || 0);
 
+    const base = tarifaPorDia * dias;
     const extras = (parseFloat(form.horasExtra) || 0) * (parseFloat(form.tarifaHoraExtra) || 0);
     const total = base + extras + (parseFloat(form.bonificacion) || 0) + (parseFloat(form.viaticos) || 0) +
       (parseFloat(form.transporte) || 0) + (parseFloat(form.alimentacion) || 0) - (parseFloat(form.descuento) || 0);
@@ -166,8 +169,26 @@ export default function JornadaForm({ tecnicos, proyectos, onClose, onSaved, pre
               </select>
             </div>
             <div>
-              <Label>Fecha *</Label>
+              <Label>Fecha inicio *</Label>
               <Input type="date" value={form.fecha} onChange={e => set('fecha', e.target.value)} required />
+            </div>
+          </div>
+
+          {/* Días trabajados — destacado */}
+          <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 flex items-center gap-4">
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-primary mb-0.5">Días trabajados</p>
+              <p className="text-xs text-muted-foreground">Si el técnico trabajó varios días consecutivos con las mismas condiciones, ingresa el total de días aquí.</p>
+            </div>
+            <div className="w-24 shrink-0">
+              <Input
+                type="number"
+                min="1"
+                max="365"
+                className="text-center text-lg font-bold h-12"
+                value={form.diasTrabajados}
+                onChange={e => set('diasTrabajados', e.target.value)}
+              />
             </div>
           </div>
 
@@ -241,11 +262,17 @@ export default function JornadaForm({ tecnicos, proyectos, onClose, onSaved, pre
 
           {/* Total preview */}
           <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 flex items-center gap-3">
-            <Calculator className="w-5 h-5 text-primary" />
-            <div>
-              <p className="text-xs text-muted-foreground">Total calculado esta jornada</p>
+            <Calculator className="w-5 h-5 text-primary shrink-0" />
+            <div className="flex-1">
+              <p className="text-xs text-muted-foreground">Total calculado</p>
               <p className="text-2xl font-bold text-primary">RD$ {total.toLocaleString('es-DO', { minimumFractionDigits: 2 })}</p>
             </div>
+            {parseInt(form.diasTrabajados) > 1 && (
+              <div className="text-right text-xs text-muted-foreground shrink-0">
+                <p>{parseInt(form.diasTrabajados)} días × RD$ {(parseFloat(form.tarifaDia) || 0).toLocaleString()}</p>
+                <p>= RD$ {((parseInt(form.diasTrabajados) || 1) * (parseFloat(form.tarifaDia) || 0)).toLocaleString()} base</p>
+              </div>
+            )}
           </div>
 
           <div className="flex gap-2 justify-end pt-1">
