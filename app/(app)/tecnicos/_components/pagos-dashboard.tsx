@@ -5,6 +5,19 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
+// Formateador de fechas limpio para jsPDF (sin toLocaleDateString)
+const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+const fmtD  = (s: string) => { const d = new Date(s + 'T12:00:00'); return `${d.getDate()} ${MESES[d.getMonth()]}`; };
+const fmtDY = (s: string) => { const d = new Date(s + 'T12:00:00'); return `${d.getDate()}/${MESES[d.getMonth()]}/${String(d.getFullYear()).slice(2)}`; };
+const fmtHoy = () => { const d = new Date(); return `${d.getDate()} ${MESES[d.getMonth()]} ${d.getFullYear()}`; };
+const fmtRango = (start: string, end: string) => {
+  if (start === end) return fmtD(start);
+  const d1 = new Date(start + 'T12:00:00'), d2 = new Date(end + 'T12:00:00');
+  return d1.getMonth() === d2.getMonth() && d1.getFullYear() === d2.getFullYear()
+    ? `${d1.getDate()}–${d2.getDate()} ${MESES[d1.getMonth()]} ${d1.getFullYear()}`
+    : `${fmtD(start)} – ${fmtD(end)} ${d2.getFullYear()}`;
+};
+
 const ESTADOS: Record<string, { label: string; cls: string }> = {
   borrador: { label: 'Borrador', cls: 'bg-gray-100 text-gray-700' },
   revision: { label: 'En revisión', cls: 'bg-amber-100 text-amber-800' },
@@ -104,9 +117,9 @@ export default function PagosDashboard({ tecnicos, jornadas, onRefresh }: Props)
     doc.setFont('helvetica', 'normal');
     const estado = p.estado.toUpperCase();
     doc.text(`Período: ${p.nombre}`, pageW - 14, titleY - 6, { align: 'right' });
-    doc.text(`${new Date(p.fechaInicio).toLocaleDateString('es-DO')} — ${new Date(p.fechaFin).toLocaleDateString('es-DO')}`, pageW - 14, titleY, { align: 'right' });
+    doc.text(fmtRango(p.fechaInicio.split('T')[0], p.fechaFin.split('T')[0]), pageW - 14, titleY, { align: 'right' });
     doc.text(`Estado: ${estado}`, pageW - 14, titleY + 5, { align: 'right' });
-    doc.text(`Emisión: ${new Date().toLocaleDateString('es-DO', { year: 'numeric', month: 'long', day: 'numeric' })}`, pageW - 14, titleY + 10, { align: 'right' });
+    doc.text(`Emisión: ${fmtHoy()}`, pageW - 14, titleY + 10, { align: 'right' });
 
     // Línea fina gris
     doc.setDrawColor(200);
@@ -120,10 +133,7 @@ export default function PagosDashboard({ tecnicos, jornadas, onRefresh }: Props)
       const jornadasTec = jornadas.filter((j: any) => j.tecnicoId === d.tecnicoId && j.periodoPagoId === p.id);
       const starts = jornadasTec.map((j: any) => j.fecha?.split('T')[0]).sort();
       const ends = jornadasTec.map((j: any) => (j.fechaFin ? j.fechaFin.split('T')[0] : j.fecha?.split('T')[0])).sort();
-      const fmt = (s: string) => new Date(s + 'T12:00:00').toLocaleDateString('es-DO', { day: '2-digit', month: 'short' });
-      const rango = starts.length > 0
-        ? (starts[0] === ends[ends.length - 1] ? fmt(starts[0]) : `${fmt(starts[0])} → ${fmt(ends[ends.length - 1])}`)
-        : '—';
+      const rango = starts.length > 0 ? fmtRango(starts[0], ends[ends.length - 1]) : '—';
       return [
         tec?.nombre ?? '—',
         tec?.rol?.nombre ?? tec?.tipoContratacion ?? '—',
@@ -193,7 +203,7 @@ export default function PagosDashboard({ tecnicos, jornadas, onRefresh }: Props)
     doc.setFontSize(7.5);
     doc.setTextColor(150);
     doc.text(empresa.empresaNombre || '', 14, pageH - 10);
-    doc.text(`Generado con RedCalc · ${new Date().toLocaleDateString('es-DO')}`, pageW - 14, pageH - 10, { align: 'right' });
+    doc.text(`Generado con RedCalc · ${fmtHoy()}`, pageW - 14, pageH - 10, { align: 'right' });
 
     const filename = `nomina-${p.nombre.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}.pdf`;
     doc.save(filename);
@@ -248,8 +258,8 @@ export default function PagosDashboard({ tecnicos, jornadas, onRefresh }: Props)
     // Número de recibo (si existe)
     doc.setFontSize(9); doc.setTextColor(100); doc.setFont('helvetica', 'normal');
     doc.text(`Período: ${p.nombre}`, pageW - 14, titleY - 5, { align: 'right' });
-    doc.text(`${new Date(p.fechaInicio).toLocaleDateString('es-DO')} — ${new Date(p.fechaFin).toLocaleDateString('es-DO')}`, pageW - 14, titleY + 1, { align: 'right' });
-    doc.text(`Emisión: ${new Date().toLocaleDateString('es-DO', { year: 'numeric', month: 'long', day: 'numeric' })}`, pageW - 14, titleY + 7, { align: 'right' });
+    doc.text(fmtRango(p.fechaInicio.split('T')[0], p.fechaFin.split('T')[0]), pageW - 14, titleY + 1, { align: 'right' });
+    doc.text(`Emisión: ${fmtHoy()}`, pageW - 14, titleY + 7, { align: 'right' });
 
     doc.setDrawColor(220); doc.setLineWidth(0.3);
     doc.line(14, titleY + 11, pageW - 14, titleY + 11);
@@ -272,11 +282,10 @@ export default function PagosDashboard({ tecnicos, jornadas, onRefresh }: Props)
 
     // ── Tabla de jornadas ───────────────────────────────────────────
     const tableY = fichaY + 30;
-    const fmt = (s: string) => new Date(s + 'T12:00:00').toLocaleDateString('es-DO', { day: '2-digit', month: 'short', year: '2-digit' });
     const jorRows = jornadasTec.map((j: any) => {
       const start = j.fecha?.split('T')[0];
       const end = j.fechaFin ? j.fechaFin.split('T')[0] : start;
-      const periodo = start === end ? fmt(start) : `${fmt(start)} → ${fmt(end)}`;
+      const periodo = fmtRango(start, end);
       return [
         periodo,
         String(j.diasTrabajados ?? 1),
@@ -353,7 +362,7 @@ export default function PagosDashboard({ tecnicos, jornadas, onRefresh }: Props)
     doc.line(14, pageH - 14, pageW - 14, pageH - 14);
     doc.setFontSize(7.5); doc.setTextColor(150);
     doc.text(empresa.empresaNombre || '', 14, pageH - 8);
-    doc.text(`Generado con RedCalc · ${new Date().toLocaleDateString('es-DO')}`, pageW - 14, pageH - 8, { align: 'right' });
+    doc.text(`Generado con RedCalc · ${fmtHoy()}`, pageW - 14, pageH - 8, { align: 'right' });
 
     const nombre = (tec?.nombre ?? 'tecnico').replace(/\s+/g, '-').toLowerCase();
     doc.save(`recibo-${nombre}-${p.nombre.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}.pdf`);
@@ -441,14 +450,7 @@ export default function PagosDashboard({ tecnicos, jornadas, onRefresh }: Props)
                     </div>
                     <p className="text-xs text-muted-foreground mt-0.5">
                       {(() => {
-                        const ini = new Date(p.fechaInicio + 'T12:00:00');
-                        const fin = new Date(p.fechaFin   + 'T12:00:00');
-                        const mes = ini.toLocaleDateString('es-DO', { month: 'short' });
-                        const mesFin = fin.toLocaleDateString('es-DO', { month: 'short' });
-                        const anio = fin.getFullYear();
-                        const rango = ini.getMonth() === fin.getMonth()
-                          ? `${ini.getDate()}–${fin.getDate()} ${mes} ${anio}`
-                          : `${ini.getDate()} ${mes} – ${fin.getDate()} ${mesFin} ${anio}`;
+                        const rango = fmtRango(p.fechaInicio.split('T')[0], p.fechaFin.split('T')[0]);
                         const totalDias = (p.detalles ?? []).reduce((s: number, d: any) => s + (d.diasTrabajados ?? 1), 0);
                         const label = totalDias > 0 ? `${totalDias} días` : `${p._count?.jornadas ?? 0} registros`;
                         return `${rango} · ${label}`;
@@ -483,9 +485,7 @@ export default function PagosDashboard({ tecnicos, jornadas, onRefresh }: Props)
                       const fechasRango = jornadasTec.length > 0 ? (() => {
                         const starts = jornadasTec.map(j => j.fecha?.split('T')[0]).sort();
                         const ends = jornadasTec.map(j => j.fechaFin ? j.fechaFin.split('T')[0] : j.fecha?.split('T')[0]).sort();
-                        const ini = new Date(starts[0] + 'T12:00:00').toLocaleDateString('es-DO', { day: '2-digit', month: 'short' });
-                        const fin = new Date(ends[ends.length - 1] + 'T12:00:00').toLocaleDateString('es-DO', { day: '2-digit', month: 'short' });
-                        return ini === fin ? ini : `${ini} → ${fin}`;
+                        return fmtRango(starts[0], ends[ends.length - 1]);
                       })() : null;
                       return (
                         <div key={d.id} className="text-xs bg-muted/40 rounded-lg p-2 flex items-start justify-between gap-1">
