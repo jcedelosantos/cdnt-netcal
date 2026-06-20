@@ -346,16 +346,41 @@ export default function PagosDashboard({ tecnicos, jornadas, onRefresh }: Props)
     doc.text('NETO A PAGAR:', colL, netoBoxY + 2);
     doc.text(`RD$ ${(d.pagoNeto || 0).toLocaleString()}`, pageW - 17, netoBoxY + 2, { align: 'right' });
 
-    // ── Líneas de firma ─────────────────────────────────────────────
-    const firmaY = netoBoxY + 28;
+    // ── Firma y sello empresa ────────────────────────────────────────
+    const firmaY = netoBoxY + 20;
+    // Cargar imagen de firma/sello y remover fondo negro
+    let firmaDataUrl: string | null = null;
+    try {
+      const firmaImg = new Image();
+      firmaImg.src = '/firma-sello.png';
+      await new Promise<void>((res, rej) => { firmaImg.onload = () => res(); firmaImg.onerror = rej; });
+      const cv = document.createElement('canvas');
+      cv.width = firmaImg.width; cv.height = firmaImg.height;
+      const cx = cv.getContext('2d')!;
+      cx.drawImage(firmaImg, 0, 0);
+      const id = cx.getImageData(0, 0, cv.width, cv.height);
+      const px = id.data;
+      for (let i = 0; i < px.length; i += 4) {
+        if (px[i] < 60 && px[i+1] < 60 && px[i+2] < 60) px[i+3] = 0;
+      }
+      cx.putImageData(id, 0, 0);
+      firmaDataUrl = cv.toDataURL('image/png');
+    } catch (_) {}
+
+    // Líneas de firma
     doc.setDrawColor(150); doc.setLineWidth(0.4);
-    doc.line(14, firmaY, 85, firmaY);
-    doc.line(pageW - 85, firmaY, pageW - 14, firmaY);
+    doc.line(14, firmaY + 22, 85, firmaY + 22);
+    doc.line(pageW - 85, firmaY + 22, pageW - 14, firmaY + 22);
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(120);
-    doc.text('Firma del técnico', 49, firmaY + 5, { align: 'center' });
-    doc.text(tec?.nombre ?? '', 49, firmaY + 10, { align: 'center' });
-    doc.text('Autorizado por empresa', pageW - 49, firmaY + 5, { align: 'center' });
-    doc.text(empresa.empresaNombre || '', pageW - 49, firmaY + 10, { align: 'center' });
+    doc.text('Firma del técnico', 49, firmaY + 28, { align: 'center' });
+    doc.text(tec?.nombre ?? '', 49, firmaY + 33, { align: 'center' });
+    doc.text('Autorizado por empresa', pageW - 49, firmaY + 28, { align: 'center' });
+    doc.text(empresa.empresaNombre || '', pageW - 49, firmaY + 33, { align: 'center' });
+    // Firma/sello sobre la línea derecha
+    if (firmaDataUrl) {
+      const selloW = 45, selloH = 30;
+      doc.addImage(firmaDataUrl, 'PNG', pageW - 14 - selloW, firmaY - 6, selloW, selloH);
+    }
 
     // ── Pie ─────────────────────────────────────────────────────────
     doc.setDrawColor(200); doc.setLineWidth(0.3);
