@@ -140,28 +140,26 @@ export default function PagosDashboard({ tecnicos, jornadas, onRefresh }: Props)
         rango,
         String(d.diasTrabajados ?? 1),
         `RD$ ${(d.pagoBruto || 0).toLocaleString()}`,
-        d.anticipos > 0  ? `- RD$ ${d.anticipos.toLocaleString()}`  : '—',
-        d.descuentos > 0 ? `- RD$ ${d.descuentos.toLocaleString()}` : '—',
+        d.anticipos > 0 ? `- RD$ ${d.anticipos.toLocaleString()}` : '—',
         `RD$ ${(d.pagoNeto || 0).toLocaleString()}`,
       ];
     });
 
     autoTable(doc, {
       startY: tableY,
-      head: [['Técnico', 'Rol', 'Período trabajado', 'Días', 'Bruto', 'Anticipos', 'Descuentos', 'Neto a pagar']],
+      head: [['Técnico', 'Rol', 'Período trabajado', 'Días', 'Bruto', 'Anticipos', 'Neto a pagar']],
       body: rows,
       styles: { fontSize: 8.5, cellPadding: 3.5 },
       headStyles: { fillColor: PRI, textColor: 255, fontStyle: 'bold', fontSize: 8 },
       alternateRowStyles: { fillColor: [247, 249, 252] },
       columnStyles: {
-        0: { cellWidth: 38 },
-        1: { cellWidth: 28 },
-        2: { cellWidth: 32 },
-        3: { cellWidth: 12, halign: 'center' },
-        4: { cellWidth: 26, halign: 'right' },
-        5: { cellWidth: 22, halign: 'right' },
-        6: { cellWidth: 22, halign: 'right' },
-        7: { cellWidth: 26, halign: 'right', fontStyle: 'bold' },
+        0: { cellWidth: 42 },
+        1: { cellWidth: 32 },
+        2: { cellWidth: 36 },
+        3: { cellWidth: 13, halign: 'center' },
+        4: { cellWidth: 28, halign: 'right' },
+        5: { cellWidth: 26, halign: 'right' },
+        6: { cellWidth: 30, halign: 'right', fontStyle: 'bold' },
       },
     });
 
