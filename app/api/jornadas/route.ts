@@ -4,9 +4,19 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 
+function calcDias(data: any): number {
+  if (data.fechaFin && data.fecha) {
+    const d1 = new Date(data.fecha + 'T12:00:00');
+    const d2 = new Date(data.fechaFin + 'T12:00:00');
+    const diff = Math.round((d2.getTime() - d1.getTime()) / 86400000) + 1;
+    return Math.max(1, diff);
+  }
+  return Math.max(1, parseInt(data.diasTrabajados) || 1);
+}
+
 function calcTotal(data: any) {
   const tarifa = parseFloat(data.tarifaDia) || 0;
-  const dias = Math.max(1, parseInt(data.diasTrabajados) || 1);
+  const dias = calcDias(data);
   const tipo = data.tipoJornada || 'completa';
 
   let tarifaPorDia = tarifa;
@@ -84,6 +94,7 @@ export async function POST(request: Request) {
 
     const totalJornada = calcTotal(data);
 
+    const diasTrabajados = calcDias(data);
     const jornada = await prisma.jornada.create({
       data: {
         userId,
@@ -91,7 +102,8 @@ export async function POST(request: Request) {
         projectId: data.projectId,
         asignacionId: data.asignacionId || null,
         fecha: new Date(data.fecha),
-        diasTrabajados: Math.max(1, parseInt(data.diasTrabajados) || 1),
+        fechaFin: data.fechaFin ? new Date(data.fechaFin) : null,
+        diasTrabajados,
         horaEntrada: data.horaEntrada || null,
         horaSalida: data.horaSalida || null,
         horasTotales: parseFloat(data.horasTotales) || 0,

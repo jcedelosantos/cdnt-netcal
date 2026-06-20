@@ -18,10 +18,21 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       return NextResponse.json({ error: 'No se puede editar una jornada ya pagada' }, { status: 400 });
     }
 
+    const fechaFin = data.fechaFin !== undefined ? (data.fechaFin ? new Date(data.fechaFin) : null) : existing.fechaFin;
+    const fecha = data.fecha ? new Date(data.fecha) : existing.fecha;
+    let diasTrabajados = existing.diasTrabajados;
+    if (data.fechaFin !== undefined || data.fecha !== undefined) {
+      const fin = fechaFin ?? fecha;
+      diasTrabajados = Math.max(1, Math.round((fin.getTime() - fecha.getTime()) / 86400000) + 1);
+    } else if (data.diasTrabajados !== undefined) {
+      diasTrabajados = Math.max(1, parseInt(data.diasTrabajados));
+    }
+
     const updated = await prisma.jornada.update({
       where: { id: params.id },
       data: {
-        diasTrabajados: data.diasTrabajados !== undefined ? Math.max(1, parseInt(data.diasTrabajados)) : existing.diasTrabajados,
+        fechaFin,
+        diasTrabajados,
         horaEntrada: data.horaEntrada !== undefined ? data.horaEntrada : existing.horaEntrada,
         horaSalida: data.horaSalida !== undefined ? data.horaSalida : existing.horaSalida,
         horasTotales: data.horasTotales !== undefined ? parseFloat(data.horasTotales) : existing.horasTotales,

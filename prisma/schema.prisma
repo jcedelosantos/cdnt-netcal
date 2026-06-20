@@ -436,6 +436,7 @@ model Jornada {
   asignacionId    String?
   userId          String
   fecha           DateTime
+  fechaFin        DateTime?
   diasTrabajados  Int      @default(1)
   horaEntrada     String?
   horaSalida      String?

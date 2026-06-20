@@ -60,7 +60,11 @@ export default function CalendarioView({ jornadas, tecnicos, onRefresh, onNewJor
 
   const getJornadasForDay = (date: Date) => {
     const key = date.toISOString().split('T')[0];
-    return filteredJornadas.filter(j => j.fecha?.startsWith(key));
+    return filteredJornadas.filter(j => {
+      const start = j.fecha?.split('T')[0];
+      const end = j.fechaFin ? j.fechaFin.split('T')[0] : start;
+      return key >= start && key <= end;
+    });
   };
 
   const prev = () => setCurrent(c => c.month === 0 ? { year: c.year - 1, month: 11 } : { ...c, month: c.month - 1 });
@@ -69,17 +73,31 @@ export default function CalendarioView({ jornadas, tecnicos, onRefresh, onNewJor
 
   const todayStr = new Date().toISOString().split('T')[0];
 
-  const selectedJornadas = selectedDay ? filteredJornadas.filter(j => j.fecha?.startsWith(selectedDay)) : [];
+  const selectedJornadas = selectedDay ? filteredJornadas.filter(j => {
+    const start = j.fecha?.split('T')[0];
+    const end = j.fechaFin ? j.fechaFin.split('T')[0] : start;
+    return selectedDay >= start && selectedDay <= end;
+  }) : [];
 
-  // Detect conflicts (same tecnico, same day, multiple projects with overlapping hours)
+  // Detect conflicts: same tecnico + overlapping date ranges
   const conflicts = useMemo(() => {
-    const seen: Record<string, string[]> = {};
-    for (const j of filteredJornadas) {
-      const key = `${j.tecnicoId}|${j.fecha?.split('T')[0]}`;
-      if (!seen[key]) seen[key] = [];
-      seen[key].push(j.id);
+    const conflictIds = new Set<string>();
+    for (let i = 0; i < filteredJornadas.length; i++) {
+      const a = filteredJornadas[i];
+      const aStart = a.fecha?.split('T')[0];
+      const aEnd = a.fechaFin ? a.fechaFin.split('T')[0] : aStart;
+      for (let k = i + 1; k < filteredJornadas.length; k++) {
+        const b = filteredJornadas[k];
+        if (a.tecnicoId !== b.tecnicoId) continue;
+        const bStart = b.fecha?.split('T')[0];
+        const bEnd = b.fechaFin ? b.fechaFin.split('T')[0] : bStart;
+        if (aStart <= bEnd && aEnd >= bStart) {
+          conflictIds.add(a.id);
+          conflictIds.add(b.id);
+        }
+      }
     }
-    return Object.values(seen).filter(v => v.length > 1).flat();
+    return Array.from(conflictIds);
   }, [filteredJornadas]);
 
   return (
