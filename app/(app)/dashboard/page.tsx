@@ -13,6 +13,7 @@ export default async function DashboardPage() {
   let stats = { total: 0, facturados: 0, aprobados: 0, pendientes: 0 };
   let recentProjects: any[] = [];
   let recentInventarios: any[] = [];
+  let tecnicosStats = { total: 0, jornadasPendientes: 0, periodosActivos: 0, netoEnRevision: 0 };
 
   try {
     const total = await withRetry(() => prisma.project.count({ where: { userId } }));
@@ -59,6 +60,25 @@ export default async function DashboardPage() {
       estado: inv.estado,
       updatedAt: inv.updatedAt?.toISOString(),
     }));
+
+    // Técnicos stats
+    const [totalTec, jornadasPend, periodosActivos] = await Promise.all([
+      withRetry(() => prisma.tecnico.count({ where: { userId, estado: 'activo' } })),
+      withRetry(() => prisma.jornada.count({ where: { userId, estado: 'pendiente' } })),
+      withRetry(() => prisma.periodoPago.findMany({
+        where: { userId, estado: { in: ['borrador', 'revision'] } },
+        select: { totalNeto: true, estado: true },
+      })),
+    ]);
+    const netoEnRevision = periodosActivos
+      .filter((p: any) => p.estado === 'revision')
+      .reduce((s: number, p: any) => s + (p.totalNeto ?? 0), 0);
+    tecnicosStats = {
+      total: totalTec,
+      jornadasPendientes: jornadasPend,
+      periodosActivos: periodosActivos.length,
+      netoEnRevision,
+    };
   } catch (e: any) {
     console.error('Dashboard error:', e);
   }
@@ -68,6 +88,7 @@ export default async function DashboardPage() {
       stats={stats}
       recentProjects={recentProjects}
       recentInventarios={recentInventarios}
+      tecnicosStats={tecnicosStats}
       userName={session?.user?.name ?? 'Usuario'}
     />
   );
