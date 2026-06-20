@@ -525,7 +525,7 @@ export default function PagosDashboard({ tecnicos, jornadas, onRefresh }: Props)
                       Marcar como pagado
                     </Button>
                   )}
-                  {['revision', 'aprobado'].includes(p.estado) && (
+                  {['revision', 'aprobado', 'pagado'].includes(p.estado) && (
                     <Button
                       size="sm" variant="outline"
                       className="text-xs text-amber-700 border-amber-300 hover:bg-amber-50"

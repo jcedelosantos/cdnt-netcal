@@ -14,9 +14,6 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   const periodo = await prisma.periodoPago.findFirst({ where: { id: params.id, userId } });
   if (!periodo) return NextResponse.json({ error: 'Periodo no encontrado' }, { status: 404 });
-  if (periodo.estado === 'pagado') {
-    return NextResponse.json({ error: 'No se puede revertir un período ya pagado' }, { status: 400 });
-  }
   if (periodo.estado === 'borrador') {
     return NextResponse.json({ error: 'El período ya está en borrador' }, { status: 400 });
   }
