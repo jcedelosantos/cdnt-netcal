@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Plus, ChevronRight, Loader2, DollarSign, CheckCircle2, Clock, AlertTriangle, X, FileText, Download } from 'lucide-react';
+import { Plus, Loader2, DollarSign, CheckCircle2, Clock, AlertTriangle, X, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -59,6 +59,88 @@ export default function PagosDashboard({ tecnicos, jornadas, onRefresh }: Props)
   const handleEstado = async (id: string, estado: string) => {
     await fetch(`/api/periodos-pago/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estado }) });
     loadPeriodos();
+  };
+
+  const exportPDF = async (p: any) => {
+    const { default: jsPDF } = await import('jspdf');
+    const { default: autoTable } = await import('jspdf-autotable');
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+
+    // Header
+    doc.setFontSize(16);
+    doc.setTextColor(21, 100, 175);
+    doc.text('Comprobante de Pago — Nómina', 14, 18);
+
+    doc.setFontSize(10);
+    doc.setTextColor(80);
+    doc.text(`Período: ${p.nombre}`, 14, 27);
+    doc.text(`Fechas: ${new Date(p.fechaInicio).toLocaleDateString('es-DO')} — ${new Date(p.fechaFin).toLocaleDateString('es-DO')}`, 14, 33);
+    doc.text(`Estado: ${p.estado.toUpperCase()}`, 14, 39);
+    doc.text(`Generado: ${new Date().toLocaleDateString('es-DO', { year: 'numeric', month: 'long', day: 'numeric' })}`, 14, 45);
+
+    // Separator line
+    doc.setDrawColor(21, 100, 175);
+    doc.setLineWidth(0.5);
+    doc.line(14, 50, 196, 50);
+
+    // Detail table per technician
+    if (p.detalles && p.detalles.length > 0) {
+      const rows = p.detalles.map((d: any) => {
+        const tec = tecnicos.find((t: any) => t.id === d.tecnicoId);
+        const jornadasTec = jornadas.filter((j: any) => j.tecnicoId === d.tecnicoId && j.periodoPagoId === p.id);
+        const starts = jornadasTec.map((j: any) => j.fecha?.split('T')[0]).sort();
+        const ends = jornadasTec.map((j: any) => (j.fechaFin ? j.fechaFin.split('T')[0] : j.fecha?.split('T')[0])).sort();
+        const rango = starts.length > 0
+          ? `${new Date(starts[0] + 'T12:00:00').toLocaleDateString('es-DO', { day: '2-digit', month: 'short' })} → ${new Date(ends[ends.length - 1] + 'T12:00:00').toLocaleDateString('es-DO', { day: '2-digit', month: 'short' })}`
+          : '—';
+        return [
+          tec?.nombre ?? d.tecnicoId,
+          rango,
+          d.diasTrabajados,
+          `RD$ ${(d.pagoBruto || 0).toLocaleString()}`,
+          d.anticipos > 0 ? `- RD$ ${d.anticipos.toLocaleString()}` : '—',
+          d.descuentos > 0 ? `- RD$ ${d.descuentos.toLocaleString()}` : '—',
+          `RD$ ${(d.pagoNeto || 0).toLocaleString()}`,
+        ];
+      });
+
+      autoTable(doc, {
+        startY: 56,
+        head: [['Técnico', 'Período', 'Días', 'Bruto', 'Anticipos', 'Descuentos', 'Neto']],
+        body: rows,
+        styles: { fontSize: 9, cellPadding: 4 },
+        headStyles: { fillColor: [21, 100, 175], textColor: 255, fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+        columnStyles: {
+          0: { cellWidth: 40 },
+          1: { cellWidth: 32 },
+          2: { cellWidth: 14, halign: 'center' },
+          3: { cellWidth: 28, halign: 'right' },
+          4: { cellWidth: 28, halign: 'right' },
+          5: { cellWidth: 28, halign: 'right' },
+          6: { cellWidth: 28, halign: 'right', fontStyle: 'bold' },
+        },
+      });
+
+      // Totals summary
+      const finalY = (doc as any).lastAutoTable.finalY + 8;
+      doc.setFontSize(10);
+      doc.setTextColor(40);
+      doc.text(`Total bruto:`, 120, finalY);
+      doc.text(`RD$ ${(p.totalBruto || 0).toLocaleString()}`, 196, finalY, { align: 'right' });
+      if (p.totalAnticipos > 0) {
+        doc.text(`Anticipos aplicados:`, 120, finalY + 6);
+        doc.text(`- RD$ ${(p.totalAnticipos || 0).toLocaleString()}`, 196, finalY + 6, { align: 'right' });
+      }
+      doc.setFontSize(12);
+      doc.setTextColor(21, 100, 175);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`Total neto:`, 120, finalY + 14);
+      doc.text(`RD$ ${(p.totalNeto || 0).toLocaleString()}`, 196, finalY + 14, { align: 'right' });
+    }
+
+    const filename = `nomina-${p.nombre.replace(/\s+/g, '-').toLowerCase()}.pdf`;
+    doc.save(filename);
   };
 
   const pendientesAnticipo = anticipos.filter(a => a.estado === 'pendiente');
@@ -145,9 +227,21 @@ export default function PagosDashboard({ tecnicos, jornadas, onRefresh }: Props)
                       {new Date(p.fechaInicio).toLocaleDateString('es-DO')} — {new Date(p.fechaFin).toLocaleDateString('es-DO')} · {p._count?.jornadas ?? 0} jornadas
                     </p>
                   </div>
-                  <div className="text-right">
-                    <p className="text-xs text-muted-foreground">Neto</p>
-                    <p className="font-bold text-primary">RD$ {(p.totalNeto || 0).toLocaleString()}</p>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <p className="text-xs text-muted-foreground">Neto</p>
+                      <p className="font-bold text-primary">RD$ {(p.totalNeto || 0).toLocaleString()}</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="shrink-0 gap-1.5"
+                      onClick={() => exportPDF(p)}
+                      title="Descargar PDF de nómina"
+                    >
+                      <FileText className="w-4 h-4" />
+                      PDF
+                    </Button>
                   </div>
                 </div>
 
