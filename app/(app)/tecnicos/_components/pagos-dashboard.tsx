@@ -149,17 +149,19 @@ export default function PagosDashboard({ tecnicos, jornadas, onRefresh }: Props)
       startY: tableY,
       head: [['Técnico', 'Rol', 'Período trabajado', 'Días', 'Bruto', 'Anticipos', 'Neto a pagar']],
       body: rows,
-      styles: { fontSize: 8.5, cellPadding: 3.5 },
-      headStyles: { fillColor: PRI, textColor: 255, fontStyle: 'bold', fontSize: 8 },
+      styles: { fontSize: 8, cellPadding: 3 },
+      headStyles: { fillColor: PRI, textColor: 255, fontStyle: 'bold', fontSize: 7.5 },
       alternateRowStyles: { fillColor: [247, 249, 252] },
+      tableWidth: 182,
+      margin: { left: 14, right: 14 },
       columnStyles: {
-        0: { cellWidth: 42 },
-        1: { cellWidth: 32 },
-        2: { cellWidth: 36 },
-        3: { cellWidth: 13, halign: 'center' },
-        4: { cellWidth: 28, halign: 'right' },
-        5: { cellWidth: 26, halign: 'right' },
-        6: { cellWidth: 30, halign: 'right', fontStyle: 'bold' },
+        0: { cellWidth: 36 },  // Técnico
+        1: { cellWidth: 28 },  // Rol
+        2: { cellWidth: 28 },  // Período
+        3: { cellWidth: 11, halign: 'center' }, // Días
+        4: { cellWidth: 25, halign: 'right' },  // Bruto
+        5: { cellWidth: 24, halign: 'right' },  // Anticipos
+        6: { cellWidth: 30, halign: 'right', fontStyle: 'bold' }, // Neto — 36+28+28+11+25+24+30=182
       },
     });
 
