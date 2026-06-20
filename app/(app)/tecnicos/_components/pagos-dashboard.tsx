@@ -423,7 +423,19 @@ export default function PagosDashboard({ tecnicos, jornadas, onRefresh }: Props)
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${est.cls}`}>{est.label}</span>
                     </div>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      {new Date(p.fechaInicio).toLocaleDateString('es-DO')} — {new Date(p.fechaFin).toLocaleDateString('es-DO')} · {p._count?.jornadas ?? 0} jornadas
+                      {(() => {
+                        const ini = new Date(p.fechaInicio + 'T12:00:00');
+                        const fin = new Date(p.fechaFin   + 'T12:00:00');
+                        const mes = ini.toLocaleDateString('es-DO', { month: 'short' });
+                        const mesFin = fin.toLocaleDateString('es-DO', { month: 'short' });
+                        const anio = fin.getFullYear();
+                        const rango = ini.getMonth() === fin.getMonth()
+                          ? `${ini.getDate()}–${fin.getDate()} ${mes} ${anio}`
+                          : `${ini.getDate()} ${mes} – ${fin.getDate()} ${mesFin} ${anio}`;
+                        const totalDias = (p.detalles ?? []).reduce((s: number, d: any) => s + (d.diasTrabajados ?? 1), 0);
+                        const label = totalDias > 0 ? `${totalDias} días` : `${p._count?.jornadas ?? 0} registros`;
+                        return `${rango} · ${label}`;
+                      })()}
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
