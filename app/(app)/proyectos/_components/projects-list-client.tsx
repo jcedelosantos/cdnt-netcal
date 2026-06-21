@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { FadeIn } from '@/components/ui/animate';
 import {
   Network, Search, PlusCircle, Copy, Trash2, ArrowRight,
-  FolderOpen, Cable, Calendar, CheckCircle2, Clock,
+  FolderOpen, Cable, Calendar, CheckCircle2, Clock, Wallet, BadgeCheck,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -204,6 +204,16 @@ export default function ProjectsListClient() {
                             ) : (
                               <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
                                 <Clock className="w-3 h-3" /> Pendiente
+                              </span>
+                            )}
+                            {p?.estadoPago === 'parcial' && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                                <Wallet className="w-3 h-3" /> Pago parcial
+                              </span>
+                            )}
+                            {p?.estadoPago === 'pagado' && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                                <BadgeCheck className="w-3 h-3" /> Pagado
                               </span>
                             )}
                           </div>
