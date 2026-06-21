@@ -93,6 +93,7 @@ export default function ProjectDetailClient({ projectId }: Props) {
   const [savingNcf, setSavingNcf] = useState(false);
   const [newPago, setNewPago] = useState({ concepto: '', monto: 0, fecha: new Date().toISOString().slice(0, 10), metodoPago: 'Transferencia', referencia: '' });
   const [savingPago, setSavingPago] = useState(false);
+  const [showPagos, setShowPagos] = useState(false);
 
   const fetchProject = useCallback(async () => {
     try {
@@ -691,6 +692,14 @@ export default function ProjectDetailClient({ projectId }: Props) {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            <Button
+              variant={showPagos ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setShowPagos(v => !v)}
+              className={showPagos ? 'bg-emerald-600 hover:bg-emerald-700' : 'text-emerald-700 border-emerald-300 hover:bg-emerald-50'}
+            >
+              <Wallet className="w-4 h-4 mr-1" /> Pagos
+            </Button>
             <Button variant="outline" size="sm" onClick={handleEnviarCorreo}>
               <Mail className="w-4 h-4 mr-1" /> Enviar
             </Button>
@@ -1109,20 +1118,20 @@ export default function ProjectDetailClient({ projectId }: Props) {
         </FadeIn>
       )}
 
-      {/* Pagos anticipados */}
-      {showPrices && totalesCot && (
+      {/* Pagos — visible independientemente de showPrices */}
+      {showPagos && (
         <FadeIn>
           <Card className="mb-6">
             <CardHeader>
               <CardTitle className="font-display flex items-center gap-2">
-                <Wallet className="w-5 h-5 text-primary" />
+                <Wallet className="w-5 h-5 text-emerald-600" />
                 Pagos y Anticipos
               </CardTitle>
               <CardDescription>Registra los abonos del cliente por fecha y monto</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Resumen financiero */}
-              {(() => {
+              {/* Resumen financiero — solo si hay precios cargados */}
+              {totalesCot && (() => {
                 const totalCot = totalesCot.total;
                 const totalPagado = (project?.pagos ?? []).reduce((acc: number, p: any) => acc + (p?.monto ?? 0), 0);
                 const balance = totalCot - totalPagado;
