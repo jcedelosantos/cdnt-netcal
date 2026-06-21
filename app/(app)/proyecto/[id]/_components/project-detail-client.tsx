@@ -94,6 +94,7 @@ export default function ProjectDetailClient({ projectId }: Props) {
   const [newPago, setNewPago] = useState({ concepto: '', monto: 0, fecha: new Date().toISOString().slice(0, 10), metodoPago: 'Transferencia', referencia: '' });
   const [savingPago, setSavingPago] = useState(false);
   const [showPagos, setShowPagos] = useState(false);
+  const [pagoTipo, setPagoTipo] = useState<'anticipo' | 'total' | null>(null);
 
   const fetchProject = useCallback(async () => {
     try {
@@ -1189,48 +1190,107 @@ export default function ProjectDetailClient({ projectId }: Props) {
                 </div>
               )}
 
+              {/* Selector tipo de pago */}
+              {!pagoTipo && (
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      setPagoTipo('anticipo');
+                      setNewPago(p => ({ ...p, concepto: 'Anticipo' }));
+                    }}
+                    className="flex-1 flex flex-col items-center gap-2 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50 hover:bg-amber-100 p-4 transition-colors"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-amber-100 border border-amber-300 flex items-center justify-center">
+                      <Wallet className="w-5 h-5 text-amber-600" />
+                    </div>
+                    <span className="text-sm font-semibold text-amber-700">Anticipo</span>
+                    <span className="text-xs text-amber-600 text-center">Abono parcial</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      const totalCot = totalesCot?.total ?? 0;
+                      const totalPagado = (project?.pagos ?? []).reduce((acc: number, p: any) => acc + (p?.monto ?? 0), 0);
+                      const balance = totalCot - totalPagado;
+                      setPagoTipo('total');
+                      setNewPago(p => ({ ...p, concepto: 'Pago total', monto: balance > 0 ? balance : 0 }));
+                    }}
+                    className="flex-1 flex flex-col items-center gap-2 rounded-xl border-2 border-dashed border-emerald-300 bg-emerald-50 hover:bg-emerald-100 p-4 transition-colors"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-emerald-100 border border-emerald-300 flex items-center justify-center">
+                      <CheckCircle className="w-5 h-5 text-emerald-600" />
+                    </div>
+                    <span className="text-sm font-semibold text-emerald-700">Pago Total</span>
+                    <span className="text-xs text-emerald-600 text-center">Salda el balance completo</span>
+                  </button>
+                </div>
+              )}
+
               {/* Formulario nuevo pago */}
-              <div className="rounded-lg border border-dashed border-primary/40 bg-primary/5 p-4">
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 items-end">
-                  <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">Concepto</label>
-                    <Input placeholder="Ej: 50% anticipo" value={newPago.concepto}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewPago((p) => ({ ...p, concepto: e.target.value }))} />
+              {pagoTipo && (
+                <div className={`rounded-lg border p-4 ${pagoTipo === 'total' ? 'border-emerald-300 bg-emerald-50/50' : 'border-amber-300 bg-amber-50/50'}`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className={`text-sm font-semibold ${pagoTipo === 'total' ? 'text-emerald-700' : 'text-amber-700'}`}>
+                      {pagoTipo === 'total' ? '✓ Pago Total' : '◑ Anticipo'}
+                    </span>
+                    <button
+                      onClick={() => { setPagoTipo(null); setNewPago(p => ({ ...p, concepto: '', monto: 0 })); }}
+                      className="text-xs text-muted-foreground hover:text-foreground underline"
+                    >
+                      Cambiar tipo
+                    </button>
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">Monto ({simbolo})</label>
-                    <Input type="number" min={0} step={0.01} placeholder="0.00" value={newPago.monto || ''}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewPago((p) => ({ ...p, monto: parseFloat(e.target.value) || 0 }))} />
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 items-end">
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Concepto</label>
+                      <Input placeholder="Ej: 50% anticipo" value={newPago.concepto}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewPago((p) => ({ ...p, concepto: e.target.value }))} />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Monto ({simbolo})</label>
+                      <Input type="number" min={0} step={0.01} placeholder="0.00" value={newPago.monto || ''}
+                        readOnly={pagoTipo === 'total'}
+                        className={pagoTipo === 'total' ? 'bg-emerald-100 font-semibold' : ''}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewPago((p) => ({ ...p, monto: parseFloat(e.target.value) || 0 }))} />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Fecha</label>
+                      <Input type="date" value={newPago.fecha}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewPago((p) => ({ ...p, fecha: e.target.value }))} />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Método</label>
+                      <select className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm"
+                        value={newPago.metodoPago}
+                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setNewPago((p) => ({ ...p, metodoPago: e.target.value }))}>
+                        <option>Transferencia</option>
+                        <option>Efectivo</option>
+                        <option>Cheque</option>
+                        <option>Tarjeta</option>
+                        <option>Depósito</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Referencia</label>
+                      <Input placeholder="Opcional" value={newPago.referencia}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewPago((p) => ({ ...p, referencia: e.target.value }))} />
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">Fecha</label>
-                    <Input type="date" value={newPago.fecha}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewPago((p) => ({ ...p, fecha: e.target.value }))} />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">Método</label>
-                    <select className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm"
-                      value={newPago.metodoPago}
-                      onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setNewPago((p) => ({ ...p, metodoPago: e.target.value }))}>
-                      <option>Transferencia</option>
-                      <option>Efectivo</option>
-                      <option>Cheque</option>
-                      <option>Tarjeta</option>
-                      <option>Depósito</option>
-                    </select>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">Referencia</label>
-                    <Input placeholder="Opcional" value={newPago.referencia}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewPago((p) => ({ ...p, referencia: e.target.value }))} />
+                  <div className="mt-3 flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      className={pagoTipo === 'total' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-amber-500 hover:bg-amber-600'}
+                      onClick={async () => { await handleAddPago(); setPagoTipo(null); }}
+                      disabled={savingPago}
+                    >
+                      <Plus className="w-4 h-4 mr-1" />
+                      {savingPago ? 'Guardando...' : pagoTipo === 'total' ? 'Registrar pago total' : 'Registrar anticipo'}
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => { setPagoTipo(null); setNewPago(p => ({ ...p, concepto: '', monto: 0 })); }}>
+                      Cancelar
+                    </Button>
                   </div>
                 </div>
-                <div className="mt-3">
-                  <Button size="sm" onClick={handleAddPago} disabled={savingPago}>
-                    <Plus className="w-4 h-4 mr-1" /> {savingPago ? 'Guardando...' : 'Agregar pago'}
-                  </Button>
-                </div>
-              </div>
+              )}
 
               {moneda === 'USD' && (
                 <p className="text-xs text-muted-foreground">
