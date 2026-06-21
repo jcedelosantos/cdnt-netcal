@@ -19,8 +19,8 @@ type NavEntry = NavItem | (NavGroup & { group: true });
 const nav: NavEntry[] = [
   { href: '/dashboard',  label: 'Dashboard',     icon: LayoutDashboard },
   { href: '/proyectos',  label: 'Proyectos', icon: FolderOpen },
-  { href: '/inventario', label: 'Inventario', icon: Package },
   { href: '/tecnicos',   label: 'Técnicos',   icon: HardHat },
+  { href: '/inventario', label: 'Inventario', icon: Package },
   {
     group: true, label: 'Reportes', icon: BarChart2,
     items: [
