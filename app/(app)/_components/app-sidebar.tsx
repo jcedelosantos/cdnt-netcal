@@ -18,7 +18,9 @@ type NavEntry = NavItem | (NavGroup & { group: true });
 
 const nav: NavEntry[] = [
   { href: '/dashboard',  label: 'Dashboard',     icon: LayoutDashboard },
-  { href: '/proyectos',  label: 'Mis Proyectos', icon: FolderOpen },
+  { href: '/proyectos',  label: 'Proyectos', icon: FolderOpen },
+  { href: '/inventario', label: 'Inventario', icon: Package },
+  { href: '/tecnicos',   label: 'Técnicos',   icon: HardHat },
   {
     group: true, label: 'Reportes', icon: BarChart2,
     items: [
@@ -26,8 +28,6 @@ const nav: NavEntry[] = [
       { href: '/roi',      label: 'ROI Analysis', icon: TrendingUp },
     ],
   },
-  { href: '/inventario', label: 'Inventario', icon: Package },
-  { href: '/tecnicos',   label: 'Técnicos',   icon: HardHat },
   {
     group: true, label: 'Configuración', icon: Settings,
     items: [
