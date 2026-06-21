@@ -19,6 +19,9 @@ const fmtFecha = (iso?: string | null) => {
   return new Date(iso).toLocaleDateString('es-DO', { day: '2-digit', month: 'short', year: 'numeric' });
 };
 
+const fmtMonto = (v: number) =>
+  'RD$ ' + v.toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
 export default function ProjectsListClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -228,7 +231,12 @@ export default function ProjectsListClient() {
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-3">
+                        {p?.totalGeneral != null && (
+                          <span className="hidden sm:block text-sm font-mono font-semibold text-primary whitespace-nowrap">
+                            {fmtMonto(p.totalGeneral)}
+                          </span>
+                        )}
                         <Button
                           variant="ghost" size="icon"
                           className={`h-8 w-8 ${p?.aprobado ? 'text-green-600' : 'text-muted-foreground'}`}

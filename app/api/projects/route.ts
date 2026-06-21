@@ -41,7 +41,7 @@ export async function GET(req: Request) {
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * limit,
         take: limit,
-        include: { puntos: true },
+        include: { puntos: true, materiales: true },
       }),
       prisma.project.count({ where }),
       // Lista de clientes únicos del usuario (para el filtro)
@@ -53,13 +53,20 @@ export async function GET(req: Request) {
       }),
     ]));
 
-    const data = projects.map((p: any) => ({
-      ...(p ?? {}),
-      fecha: p?.fecha?.toISOString?.() ?? null,
-      createdAt: p?.createdAt?.toISOString?.() ?? null,
-      updatedAt: p?.updatedAt?.toISOString?.() ?? null,
-      totalPuntos: (p?.puntos ?? []).reduce((acc: number, pt: any) => acc + (pt?.cantidad ?? 0), 0),
-    }));
+    const data = projects.map((p: any) => {
+      const subtotalMat = (p?.materiales ?? []).reduce((s: number, m: any) => s + (m?.subtotal ?? 0), 0);
+      const costos = (p?.costoManoObra ?? 0) + (p?.costoTransporte ?? 0) + (p?.costoConfiguracion ?? 0) + (p?.costoCertificacion ?? 0);
+      const subtotalGeneral = subtotalMat * (1 + (p?.margenGanancia ?? 0) / 100) + costos;
+      const totalGeneral = subtotalGeneral * (1 + (p?.itbis ?? 18) / 100);
+      return {
+        ...(p ?? {}),
+        fecha: p?.fecha?.toISOString?.() ?? null,
+        createdAt: p?.createdAt?.toISOString?.() ?? null,
+        updatedAt: p?.updatedAt?.toISOString?.() ?? null,
+        totalPuntos: (p?.puntos ?? []).reduce((acc: number, pt: any) => acc + (pt?.cantidad ?? 0), 0),
+        totalGeneral: totalGeneral > 0 ? totalGeneral : null,
+      };
+    });
 
     const clientes = (clientesRaw ?? [])
       .map((c: any) => c?.cliente)
