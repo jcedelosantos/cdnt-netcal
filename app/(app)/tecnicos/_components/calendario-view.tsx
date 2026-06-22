@@ -6,9 +6,10 @@ import { Button } from '@/components/ui/button';
 const WEEKDAYS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
-const PROJECT_COLORS = [
+const TECNICO_COLORS = [
   '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
   '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6366F1',
+  '#14B8A6', '#F43F5E',
 ];
 
 const ESTADO_DOT: Record<string, string> = {
@@ -32,13 +33,11 @@ export default function CalendarioView({ jornadas, tecnicos, onRefresh, onNewJor
   const [filterTecnico, setFilterTecnico] = useState('');
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
 
-  // Assign color per project
-  const projectColorMap = useMemo(() => {
+  // Assign a stable color per technician (sorted by id for consistency)
+  const tecnicoColorMap = useMemo(() => {
     const map: Record<string, string> = {};
-    let idx = 0;
-    for (const j of jornadas) {
-      if (j.projectId && !map[j.projectId]) map[j.projectId] = PROJECT_COLORS[idx++ % PROJECT_COLORS.length];
-    }
+    const ids = [...new Set(jornadas.map(j => j.tecnicoId).filter(Boolean))].sort();
+    ids.forEach((id, idx) => { map[id] = TECNICO_COLORS[idx % TECNICO_COLORS.length]; });
     return map;
   }, [jornadas]);
 
@@ -135,6 +134,16 @@ export default function CalendarioView({ jornadas, tecnicos, onRefresh, onNewJor
         </div>
       </div>
 
+      {/* Leyenda de técnicos */}
+      <div className="flex flex-wrap gap-2">
+        {tecnicos.map(t => (
+          <span key={t.id} className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-full border" style={{ borderColor: `${tecnicoColorMap[t.id] ?? '#6B7280'}60`, backgroundColor: `${tecnicoColorMap[t.id] ?? '#6B7280'}10`, color: tecnicoColorMap[t.id] ?? '#6B7280' }}>
+            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: tecnicoColorMap[t.id] ?? '#6B7280' }} />
+            {t.nombre.split(' ')[0]}
+          </span>
+        ))}
+      </div>
+
       {/* Calendar grid */}
       <div className="bg-white rounded-xl border overflow-hidden">
         {/* Header */}
@@ -174,7 +183,7 @@ export default function CalendarioView({ jornadas, tecnicos, onRefresh, onNewJor
                     <div
                       key={j.id}
                       className="text-[10px] px-1 py-0.5 rounded truncate flex items-center gap-1"
-                      style={{ backgroundColor: `${projectColorMap[j.projectId] ?? '#6B7280'}20`, color: projectColorMap[j.projectId] ?? '#6B7280' }}
+                      style={{ backgroundColor: `${tecnicoColorMap[j.tecnicoId] ?? '#6B7280'}20`, color: tecnicoColorMap[j.tecnicoId] ?? '#6B7280' }}
                     >
                       <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${ESTADO_DOT[j.estado] ?? 'bg-gray-400'}`} />
                       {j.tecnico?.nombre?.split(' ')[0]}
@@ -207,7 +216,7 @@ export default function CalendarioView({ jornadas, tecnicos, onRefresh, onNewJor
                 <div key={j.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
                   <div
                     className="w-2 h-10 rounded-full shrink-0"
-                    style={{ backgroundColor: projectColorMap[j.projectId] ?? '#6B7280' }}
+                    style={{ backgroundColor: tecnicoColorMap[j.tecnicoId] ?? '#6B7280' }}
                   />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium">{j.tecnico?.nombre}</p>

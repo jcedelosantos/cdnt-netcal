@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   Users, CalendarDays, DollarSign, BarChart3, Plus, Search,
   HardHat, Clock, CheckCircle2, AlertTriangle, TrendingUp,
-  ChevronRight, Loader2, Filter, Download,
+  ChevronRight, Loader2, Filter, Download, Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -362,6 +362,12 @@ function JornadasTable({
     onRefresh();
   };
 
+  const eliminar = async (id: string, nombre: string) => {
+    if (!confirm(`¿Eliminar la jornada de ${nombre}? Esta acción no se puede deshacer.`)) return;
+    await fetch(`/api/jornadas/${id}`, { method: 'DELETE' });
+    onRefresh();
+  };
+
   if (jornadas.length === 0) {
     return <p className="text-center py-12 text-muted-foreground text-sm">No hay jornadas registradas</p>;
   }
@@ -421,6 +427,16 @@ function JornadasTable({
                     <Button size="sm" variant="ghost" className="text-xs h-7 px-2" onClick={() => onCopy(j)} title="Copiar jornada">
                       📋
                     </Button>
+                    {!pagada && (
+                      <Button
+                        size="sm" variant="ghost"
+                        className="text-xs h-7 px-2 text-destructive hover:bg-destructive/10"
+                        onClick={() => eliminar(j.id, j.tecnico?.nombre ?? 'técnico')}
+                        title="Eliminar jornada"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    )}
                   </div>
                 </td>
               )}
