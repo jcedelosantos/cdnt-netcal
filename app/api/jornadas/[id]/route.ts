@@ -14,14 +14,17 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     const existing = await prisma.jornada.findFirst({ where: { id: params.id, userId } });
     if (!existing) return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
 
-    if (existing.periodoPagoId) {
-      return NextResponse.json({ error: 'No se puede editar una jornada ya pagada' }, { status: 400 });
-    }
-
     const fechaFin = data.fechaFin !== undefined ? (data.fechaFin ? new Date(data.fechaFin) : null) : existing.fechaFin;
     const fecha = data.fecha ? new Date(data.fecha) : existing.fecha;
     let diasTrabajados = existing.diasTrabajados;
-    if (data.fechaFin !== undefined || data.fecha !== undefined) {
+    // Individual days mode takes priority
+    const fechasIndividualesRaw = data.fechasIndividuales !== undefined ? data.fechasIndividuales : existing.fechasIndividuales;
+    if (fechasIndividualesRaw) {
+      try {
+        const arr = JSON.parse(fechasIndividualesRaw);
+        if (Array.isArray(arr) && arr.length > 0) diasTrabajados = arr.length;
+      } catch {}
+    } else if (data.fechaFin !== undefined || data.fecha !== undefined) {
       const fin = fechaFin ?? fecha;
       diasTrabajados = Math.max(1, Math.round((fin.getTime() - fecha.getTime()) / 86400000) + 1);
     } else if (data.diasTrabajados !== undefined) {
@@ -50,6 +53,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
         observaciones: data.observaciones !== undefined ? data.observaciones : existing.observaciones,
         estado: data.estado ?? existing.estado,
         aprobadoPor: data.aprobadoPor !== undefined ? data.aprobadoPor : existing.aprobadoPor,
+        fechasIndividuales: data.fechasIndividuales !== undefined ? data.fechasIndividuales : existing.fechasIndividuales,
       },
       include: {
         tecnico: { select: { id: true, nombre: true, codigo: true } },
@@ -69,10 +73,6 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
 
   const existing = await prisma.jornada.findFirst({ where: { id: params.id, userId } });
   if (!existing) return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
-  if (existing.periodoPagoId) {
-    return NextResponse.json({ error: 'No se puede eliminar una jornada ya pagada' }, { status: 400 });
-  }
-
   await prisma.jornada.delete({ where: { id: params.id } });
   return NextResponse.json({ success: true });
 }

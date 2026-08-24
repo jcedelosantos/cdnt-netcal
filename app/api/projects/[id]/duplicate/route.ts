@@ -13,21 +13,34 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const userId = (session?.user as any)?.id;
     const id = params?.id;
 
+    // Incluir TODOS los materiales (con sus precios guardados)
     const original = await withRetry(() => prisma.project.findFirst({
       where: { id, userId },
-      include: { puntos: true },
+      include: {
+        puntos: true,
+        materiales: true,
+      },
     }));
 
     if (!original) return NextResponse.json({ error: 'Proyecto no encontrado' }, { status: 404 });
 
-    const { id: _id, userId: _uid, createdAt: _ca, updatedAt: _ua, ...projectData } = original as any;
+    // Extraer solo campos escalares (excluir relaciones y metadatos del original)
+    const {
+      id: _id, userId: _uid, createdAt: _ca, updatedAt: _ua,
+      puntos: _puntos, materiales: _materiales,
+      aprobado: _ap, aprobadoEn: _apEn,
+      numeroCotizacion: _nc, numeroFactura: _nf, facturadoEn: _fEn,
+      ...scalarData
+    } = original as any;
 
     const newProject = await prisma.project.create({
       data: {
-        ...projectData,
+        ...scalarData,
         userId,
         nombre: `${original?.nombre ?? 'Proyecto'} (copia)`,
         fecha: new Date(),
+        estadoPago: 'pendiente',
+        aprobado: false,
         puntos: {
           create: (original?.puntos ?? []).map((p: any) => ({
             tipo: p?.tipo ?? 'datos',
@@ -37,6 +50,22 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         },
       },
     });
+
+    // Copiar TODOS los materiales con sus precios exactos del original
+    if ((original?.materiales ?? []).length > 0) {
+      await prisma.projectMaterial.createMany({
+        data: (original.materiales ?? []).map((m: any) => ({
+          projectId: newProject.id,
+          categoria: m?.categoria ?? '',
+          nombre: m?.nombre ?? '',
+          cantidad: m?.cantidad ?? 0,
+          unidad: m?.unidad ?? 'und',
+          precioUnit: m?.precioUnit ?? 0,
+          subtotal: m?.subtotal ?? 0,
+          esPersonalizado: m?.esPersonalizado ?? false,
+        })),
+      });
+    }
 
     return NextResponse.json({ id: newProject?.id });
   } catch (error: any) {

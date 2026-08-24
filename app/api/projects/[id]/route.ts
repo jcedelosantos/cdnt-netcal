@@ -79,7 +79,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     if (!existing) return NextResponse.json({ error: 'Proyecto no encontrado' }, { status: 404 });
 
     const body = await req.json();
-    const { puntos, inventoryClientId, clienteNombre, ...projectData } = body ?? {};
+    const { puntos, inventoryClientId, clienteNombre, recalculate = true, ...projectData } = body ?? {};
 
     // Resolve inventory client
     let resolvedClientId = inventoryClientId !== undefined ? inventoryClientId : undefined;
@@ -128,48 +128,51 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       }
     }
 
-    // Recalculate
     const updatedProject = await prisma.project.findFirst({
       where: { id },
       include: { puntos: true },
     });
 
-    const config: ConfigProyecto = {
-      puntos: (updatedProject?.puntos ?? []).map((p: any) => ({
-        tipo: p?.tipo ?? 'datos',
-        cantidad: p?.cantidad ?? 0,
-        distancia: p?.distancia ?? 30,
-      })),
-      categoriaCable: updatedProject?.categoriaCable ?? 'Cat6',
-      tipoInstalacion: updatedProject?.tipoInstalacion ?? 'expuesta',
-      tipoCanalizacion: updatedProject?.tipoCanalización ?? 'EMT',
-      reservaCable: updatedProject?.reservaCable ?? 15,
-      reservaMateriales: updatedProject?.reservaMateriales ?? 10,
-      switchPuertos: updatedProject?.switchPuertos ?? 24,
-      switchPoE: updatedProject?.switchPoE ?? false,
-      switchPuertosPoE: updatedProject?.switchPuertosPoE ?? 0,
-      gabineteRU: updatedProject?.gabineteRU ?? 12,
-      incluyeUPS: updatedProject?.incluyeUPS ?? false,
-      distanciaPromedio: updatedProject?.distanciaPromedio ?? 30,
-      modoAvanzado: updatedProject?.modoAvanzado ?? false,
-    };
-    const resultado = calcularMateriales(config);
+    let resultado: any = null;
 
-    // Update materiales — conservar los personalizados
-    await prisma.projectMaterial.deleteMany({ where: { projectId: id, esPersonalizado: false } });
-    if ((resultado?.materiales?.length ?? 0) > 0) {
-      await prisma.projectMaterial.createMany({
-        data: (resultado?.materiales ?? []).map((m: any) => ({
-          projectId: id,
-          categoria: m?.categoria ?? '',
-          nombre: m?.nombre ?? '',
-          cantidad: m?.cantidad ?? 0,
-          unidad: m?.unidad ?? 'und',
-          precioUnit: m?.precioUnit ?? 0,
-          subtotal: m?.subtotal ?? 0,
-          esPersonalizado: false,
+    if (recalculate) {
+      const config: ConfigProyecto = {
+        puntos: (updatedProject?.puntos ?? []).map((p: any) => ({
+          tipo: p?.tipo ?? 'datos',
+          cantidad: p?.cantidad ?? 0,
+          distancia: p?.distancia ?? 30,
         })),
-      });
+        categoriaCable: updatedProject?.categoriaCable ?? 'Cat6',
+        tipoInstalacion: updatedProject?.tipoInstalacion ?? 'expuesta',
+        tipoCanalizacion: updatedProject?.tipoCanalización ?? 'EMT',
+        reservaCable: updatedProject?.reservaCable ?? 15,
+        reservaMateriales: updatedProject?.reservaMateriales ?? 10,
+        switchPuertos: updatedProject?.switchPuertos ?? 24,
+        switchPoE: updatedProject?.switchPoE ?? false,
+        switchPuertosPoE: updatedProject?.switchPuertosPoE ?? 0,
+        gabineteRU: updatedProject?.gabineteRU ?? 12,
+        incluyeUPS: updatedProject?.incluyeUPS ?? false,
+        distanciaPromedio: updatedProject?.distanciaPromedio ?? 30,
+        modoAvanzado: updatedProject?.modoAvanzado ?? false,
+      };
+      resultado = calcularMateriales(config);
+
+      // Update materiales — conservar los personalizados
+      await prisma.projectMaterial.deleteMany({ where: { projectId: id, esPersonalizado: false } });
+      if ((resultado?.materiales?.length ?? 0) > 0) {
+        await prisma.projectMaterial.createMany({
+          data: (resultado?.materiales ?? []).map((m: any) => ({
+            projectId: id,
+            categoria: m?.categoria ?? '',
+            nombre: m?.nombre ?? '',
+            cantidad: m?.cantidad ?? 0,
+            unidad: m?.unidad ?? 'und',
+            precioUnit: m?.precioUnit ?? 0,
+            subtotal: m?.subtotal ?? 0,
+            esPersonalizado: false,
+          })),
+        });
+      }
     }
 
     return NextResponse.json({

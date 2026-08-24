@@ -109,7 +109,7 @@ export default function EditProjectClient({ projectId }: { projectId: string }) 
     });
   };
 
-  const handleSave = async () => {
+  const handleSave = async (recalculate = true) => {
     if (!form?.nombre?.trim()) {
       toast.error('El nombre del proyecto es requerido');
       return;
@@ -119,10 +119,10 @@ export default function EditProjectClient({ projectId }: { projectId: string }) 
       const res = await fetch(`/api/projects/${projectId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, recalculate }),
       });
       if (res.ok) {
-        toast.success('Proyecto actualizado');
+        toast.success(recalculate ? 'Proyecto actualizado y recalculado' : 'Datos guardados');
         router.replace(`/proyecto/${projectId}`);
       } else {
         const data = await res.json();
@@ -311,7 +311,10 @@ export default function EditProjectClient({ projectId }: { projectId: string }) 
         <Button variant="outline" onClick={() => router.push(`/proyecto/${projectId}`)}>
           Cancelar
         </Button>
-        <Button onClick={handleSave} disabled={saving} className="flex-1 bg-gradient-to-r from-blue-600 to-teal-500">
+        <Button variant="outline" onClick={() => handleSave(false)} disabled={saving}>
+          <Save className="w-4 h-4 mr-2" /> Solo guardar
+        </Button>
+        <Button onClick={() => handleSave(true)} disabled={saving} className="flex-1 bg-gradient-to-r from-blue-600 to-teal-500">
           {saving ? 'Guardando...' : <><Save className="w-4 h-4 mr-2" /> Guardar y Recalcular</>}
         </Button>
       </div>

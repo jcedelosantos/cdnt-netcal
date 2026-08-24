@@ -25,6 +25,76 @@ function calcDiasBetween(ini: string, fin: string): number {
   return Math.max(1, Math.round((d2.getTime() - d1.getTime()) / 86400000) + 1);
 }
 
+// ─── Mini-calendario de días individuales ────────────────────────────────────
+function IndividualCalendar({ selected, onChange }: {
+  selected: string[];
+  onChange: (dates: string[]) => void;
+}) {
+  const seed = selected[0] ? new Date(selected[0] + 'T12:00:00') : new Date();
+  const [mes, setMes] = useState({ year: seed.getFullYear(), month: seed.getMonth() });
+
+  const firstDay = new Date(mes.year, mes.month, 1);
+  const lastDay = new Date(mes.year, mes.month + 1, 0);
+  const offset = firstDay.getDay();
+  const cells = Math.ceil((offset + lastDay.getDate()) / 7) * 7;
+  const days: (Date | null)[] = Array.from({ length: cells }, (_, i) => {
+    const d = i - offset + 1;
+    return d < 1 || d > lastDay.getDate() ? null : new Date(mes.year, mes.month, d);
+  });
+
+  const prev = () => setMes(m => m.month === 0 ? { year: m.year - 1, month: 11 } : { ...m, month: m.month - 1 });
+  const next = () => setMes(m => m.month === 11 ? { year: m.year + 1, month: 0 } : { ...m, month: m.month + 1 });
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  const toggle = (date: Date) => {
+    const str = date.toISOString().split('T')[0];
+    const next = selected.includes(str) ? selected.filter(d => d !== str) : [...selected, str].sort();
+    onChange(next);
+  };
+
+  return (
+    <div className="border rounded-xl overflow-hidden">
+      <div className="flex items-center justify-between bg-muted/30 px-3 py-2">
+        <button type="button" onClick={prev} className="p-1 hover:bg-muted rounded-md transition-colors"><ChevronLeft className="w-4 h-4" /></button>
+        <span className="text-sm font-semibold">{MONTHS[mes.month]} {mes.year}</span>
+        <button type="button" onClick={next} className="p-1 hover:bg-muted rounded-md transition-colors"><ChevronRight className="w-4 h-4" /></button>
+      </div>
+      <div className="p-3 space-y-1">
+        <div className="grid grid-cols-7 mb-1">
+          {WEEKDAYS.map(d => <span key={d} className="text-[10px] font-medium text-muted-foreground text-center py-1">{d}</span>)}
+        </div>
+        <div className="grid grid-cols-7">
+          {days.map((date, i) => {
+            if (!date) return <div key={i} className="h-8" />;
+            const str = date.toISOString().split('T')[0];
+            const isSel = selected.includes(str);
+            const isToday = str === todayStr;
+            return (
+              <div
+                key={i}
+                onClick={() => toggle(date)}
+                className={`h-8 text-xs flex items-center justify-center cursor-pointer rounded-lg transition-colors select-none ${
+                  isSel ? 'bg-primary text-white font-bold' :
+                  isToday ? 'font-bold ring-1 ring-inset ring-primary/40 hover:bg-muted' :
+                  'hover:bg-muted'
+                }`}
+              >
+                {date.getDate()}
+              </div>
+            );
+          })}
+        </div>
+        <div className="flex items-center justify-between pt-2 border-t text-xs mt-1">
+          <span className="text-muted-foreground italic">Click para seleccionar/deseleccionar</span>
+          {selected.length > 0 && (
+            <span className="font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full">{selected.length} día{selected.length > 1 ? 's' : ''}</span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Mini-calendario de rango ────────────────────────────────────────────────
 function RangoCalendar({ inicio, fin, onChange }: {
   inicio: string;
@@ -160,6 +230,15 @@ export default function JornadaForm({ tecnicos, proyectos, onClose, onSaved, pre
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [modoIndividual, setModoIndividual] = useState(() => {
+    return !!(source?.fechasIndividuales);
+  });
+  const [fechasIndividuales, setFechasIndividuales] = useState<string[]>(() => {
+    if (source?.fechasIndividuales) {
+      try { return JSON.parse(source.fechasIndividuales); } catch { return []; }
+    }
+    return [];
+  });
 
   const buildInitialForm = () => {
     if (source) {
@@ -217,6 +296,15 @@ export default function JornadaForm({ tecnicos, proyectos, onClose, onSaved, pre
 
   const [form, setForm] = useState(buildInitialForm);
 
+  // Apply initial hour calculation on mount
+  useEffect(() => {
+    const initial = buildInitialForm();
+    if (initial.horaEntrada && initial.horaSalida) {
+      recalcHoras(initial.horaEntrada, initial.horaSalida);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (form.tecnicoId && !source) {
       const t = tecnicos.find(tc => tc.id === form.tecnicoId);
@@ -232,7 +320,29 @@ export default function JornadaForm({ tecnicos, proyectos, onClose, onSaved, pre
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
-  const diasTrabajados = calcDiasBetween(form.fecha, form.fechaFin);
+  const recalcHoras = (entrada: string, salida: string) => {
+    if (!entrada || !salida) return;
+    const [eh, em] = entrada.split(':').map(Number);
+    const [sh, sm] = salida.split(':').map(Number);
+    if (isNaN(eh) || isNaN(sh)) return;
+    const totalMins = (sh * 60 + sm) - (eh * 60 + em);
+    if (totalMins <= 0) return;
+    const totalH = totalMins / 60;
+    const extra = Math.max(0, totalH - 9);
+    const tipo = totalH <= 4.5 ? 'media' : 'completa';
+    setForm(f => ({
+      ...f,
+      horaEntrada: entrada,
+      horaSalida: salida,
+      horasTotales: parseFloat(totalH.toFixed(2)).toString(),
+      horasExtra: extra > 0 ? parseFloat(extra.toFixed(2)).toString() : '0',
+      tipoJornada: tipo,
+    }));
+  };
+
+  const diasTrabajados = modoIndividual
+    ? Math.max(1, fechasIndividuales.length)
+    : calcDiasBetween(form.fecha, form.fechaFin);
 
   const calcTotal = () => {
     const tarifa = parseFloat(form.tarifaDia) || 0;
@@ -256,18 +366,38 @@ export default function JornadaForm({ tecnicos, proyectos, onClose, onSaved, pre
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    if (!form.tecnicoId || !form.projectId || !form.fecha) {
-      setError('Técnico, proyecto y fecha son requeridos');
+    if (!form.tecnicoId || !form.projectId) {
+      setError('Técnico y proyecto son requeridos');
+      return;
+    }
+    if (modoIndividual && fechasIndividuales.length === 0) {
+      setError('Selecciona al menos un día');
+      return;
+    }
+    if (!modoIndividual && !form.fecha) {
+      setError('Fecha es requerida');
       return;
     }
     setLoading(true);
+
+    // Derive fecha/fechaFin from individual dates when applicable
+    const fechaBase = modoIndividual ? fechasIndividuales[0] : form.fecha;
+    const fechaFinBase = modoIndividual ? fechasIndividuales[fechasIndividuales.length - 1] : form.fechaFin;
+
     try {
       const url = modoEdicion ? `/api/jornadas/${editando.id}` : '/api/jornadas';
       const method = modoEdicion ? 'PUT' : 'POST';
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, diasTrabajados, totalJornada: calcTotal() }),
+        body: JSON.stringify({
+          ...form,
+          fecha: fechaBase,
+          fechaFin: fechaFinBase,
+          diasTrabajados,
+          totalJornada: calcTotal(),
+          fechasIndividuales: modoIndividual ? JSON.stringify(fechasIndividuales) : null,
+        }),
       });
       if (res.status === 409) { setError('Ya existe una jornada para este técnico, proyecto y fecha'); return; }
       if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Error al guardar'); return; }
@@ -310,34 +440,72 @@ export default function JornadaForm({ tecnicos, proyectos, onClose, onSaved, pre
             </div>
           </div>
 
-          {/* Calendario de rango */}
+          {/* Período de trabajo */}
           <div>
             <div className="flex items-center justify-between mb-2">
               <Label>Período de trabajo *</Label>
-              {diasTrabajados > 1 && (
-                <span className="text-xs text-muted-foreground">
-                  {new Date(form.fecha + 'T12:00:00').toLocaleDateString('es-DO', { day: '2-digit', month: 'short' })}
-                  {' → '}
-                  {new Date(form.fechaFin + 'T12:00:00').toLocaleDateString('es-DO', { day: '2-digit', month: 'short' })}
-                </span>
-              )}
+              {/* Toggle rango / días individuales */}
+              <div className="flex items-center bg-muted rounded-lg p-0.5 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setModoIndividual(false)}
+                  className={`px-3 py-1 rounded-md transition-colors font-medium ${!modoIndividual ? 'bg-white shadow text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                >
+                  Rango
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModoIndividual(true)}
+                  className={`px-3 py-1 rounded-md transition-colors font-medium ${modoIndividual ? 'bg-white shadow text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                >
+                  Días sueltos
+                </button>
+              </div>
             </div>
-            <RangoCalendar
-              inicio={form.fecha}
-              fin={form.fechaFin}
-              onChange={(ini, fin) => setForm(f => ({ ...f, fecha: ini, fechaFin: fin }))}
-            />
+
+            {modoIndividual ? (
+              <>
+                {fechasIndividuales.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mb-2">
+                    {fechasIndividuales.map(d => (
+                      <span key={d} className="text-[11px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
+                        {new Date(d + 'T12:00:00').toLocaleDateString('es-DO', { day: '2-digit', month: 'short' })}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <IndividualCalendar
+                  selected={fechasIndividuales}
+                  onChange={setFechasIndividuales}
+                />
+              </>
+            ) : (
+              <>
+                {diasTrabajados > 1 && (
+                  <div className="text-xs text-muted-foreground mb-2">
+                    {new Date(form.fecha + 'T12:00:00').toLocaleDateString('es-DO', { day: '2-digit', month: 'short' })}
+                    {' → '}
+                    {new Date(form.fechaFin + 'T12:00:00').toLocaleDateString('es-DO', { day: '2-digit', month: 'short' })}
+                  </div>
+                )}
+                <RangoCalendar
+                  inicio={form.fecha}
+                  fin={form.fechaFin}
+                  onChange={(ini, fin) => setForm(f => ({ ...f, fecha: ini, fechaFin: fin }))}
+                />
+              </>
+            )}
           </div>
 
           {/* Horario y tipo */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div>
               <Label>Entrada</Label>
-              <Input type="time" value={form.horaEntrada} onChange={e => set('horaEntrada', e.target.value)} />
+              <Input type="time" value={form.horaEntrada} onChange={e => recalcHoras(e.target.value, form.horaSalida)} />
             </div>
             <div>
               <Label>Salida</Label>
-              <Input type="time" value={form.horaSalida} onChange={e => set('horaSalida', e.target.value)} />
+              <Input type="time" value={form.horaSalida} onChange={e => recalcHoras(form.horaEntrada, e.target.value)} />
             </div>
             <div>
               <Label>Horas totales</Label>

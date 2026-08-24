@@ -82,11 +82,8 @@ export default function TecnicosPage() {
   const hoy = new Date().toISOString().split('T')[0];
   const trabajandoHoy = jornadas.filter(j => j.fecha?.startsWith(hoy) && j.estado !== 'ausente' && j.estado !== 'cancelado').length;
   const pendientesAprobacion = jornadas.filter(j => j.estado === 'pendiente').length;
-  const semanaInicio = new Date();
-  semanaInicio.setDate(semanaInicio.getDate() - semanaInicio.getDay());
-  const nominaSemana = jornadas
-    .filter(j => new Date(j.fecha) >= semanaInicio && j.periodoPagoId === null)
-    .reduce((s, j) => s + (j.totalJornada || 0), 0);
+  const jornadasSinPagar = jornadas.filter(j => !j.periodoPagoId);
+  const nominaPendiente = jornadasSinPagar.reduce((s, j) => s + (j.totalJornada || 0), 0);
 
   return (
     <div className="p-4 md:p-6 space-y-4 max-w-7xl mx-auto">
@@ -142,8 +139,8 @@ export default function TecnicosPage() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <KpiCard label="Técnicos activos" value={activos} icon={Users} color="blue" />
                 <KpiCard label="Trabajando hoy" value={trabajandoHoy} icon={CheckCircle2} color="emerald" />
-                <KpiCard label="Jornadas pendientes" value={pendientesAprobacion} icon={AlertTriangle} color="amber" />
-                <KpiCard label="Nómina sem. (sin pagar)" value={`RD$ ${nominaSemana.toLocaleString()}`} icon={DollarSign} color="violet" />
+                <KpiCard label="Jornadas por aprobar" value={pendientesAprobacion} icon={AlertTriangle} color="amber" />
+                <KpiCard label="Nómina pendiente pago" value={`RD$ ${nominaPendiente.toLocaleString()}`} icon={DollarSign} color="violet" />
               </div>
 
               {/* Recent jornadas */}
@@ -362,8 +359,11 @@ function JornadasTable({
     onRefresh();
   };
 
-  const eliminar = async (id: string, nombre: string) => {
-    if (!confirm(`¿Eliminar la jornada de ${nombre}? Esta acción no se puede deshacer.`)) return;
+  const eliminar = async (id: string, nombre: string, pagada: boolean) => {
+    const msg = pagada
+      ? `Esta jornada ya fue pagada. ¿Seguro que deseas eliminarla de todas formas? Esta acción no se puede deshacer.`
+      : `¿Eliminar la jornada de ${nombre}? Esta acción no se puede deshacer.`;
+    if (!confirm(msg)) return;
     await fetch(`/api/jornadas/${id}`, { method: 'DELETE' });
     onRefresh();
   };
@@ -419,24 +419,20 @@ function JornadasTable({
                         Aprobar
                       </Button>
                     )}
-                    {!pagada && (
-                      <Button size="sm" variant="ghost" className="text-xs h-7 px-2" onClick={() => onEdit(j)} title="Editar jornada">
-                        ✏️
-                      </Button>
-                    )}
+                    <Button size="sm" variant="ghost" className="text-xs h-7 px-2" onClick={() => onEdit(j)} title="Editar jornada">
+                      ✏️
+                    </Button>
                     <Button size="sm" variant="ghost" className="text-xs h-7 px-2" onClick={() => onCopy(j)} title="Copiar jornada">
                       📋
                     </Button>
-                    {!pagada && (
-                      <Button
-                        size="sm" variant="ghost"
-                        className="text-xs h-7 px-2 text-destructive hover:bg-destructive/10"
-                        onClick={() => eliminar(j.id, j.tecnico?.nombre ?? 'técnico')}
-                        title="Eliminar jornada"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
-                    )}
+                    <Button
+                      size="sm" variant="ghost"
+                      className="text-xs h-7 px-2 text-destructive hover:bg-destructive/10"
+                      onClick={() => eliminar(j.id, j.tecnico?.nombre ?? 'técnico', pagada)}
+                      title="Eliminar jornada"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
                   </div>
                 </td>
               )}

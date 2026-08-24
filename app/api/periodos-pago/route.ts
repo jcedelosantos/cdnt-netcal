@@ -11,7 +11,16 @@ export async function GET(request: Request) {
 
   const periodos = await prisma.periodoPago.findMany({
     where: { userId },
-    include: { detalles: true, _count: { select: { jornadas: true } } },
+    include: {
+      detalles: true,
+      _count: { select: { jornadas: true } },
+      jornadas: {
+        include: {
+          tecnico: { select: { id: true, nombre: true, codigo: true } },
+          project: { select: { id: true, nombre: true, cliente: true } },
+        },
+      },
+    },
     orderBy: { fechaInicio: 'desc' },
   });
 

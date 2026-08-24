@@ -57,9 +57,16 @@ export default function CalendarioView({ jornadas, tecnicos, onRefresh, onNewJor
     return new Date(current.year, current.month, d);
   });
 
+  const parseFechasIndividuales = (j: any): string[] | null => {
+    if (!j.fechasIndividuales) return null;
+    try { return JSON.parse(j.fechasIndividuales); } catch { return null; }
+  };
+
   // Calcula la fecha fin efectiva: usa fechaFin si existe, sino calcula desde diasTrabajados
   const getEffectiveEnd = (j: any): string => {
     const start = j.fecha?.split('T')[0];
+    const individual = parseFechasIndividuales(j);
+    if (individual && individual.length > 0) return individual[individual.length - 1];
     if (j.fechaFin) return j.fechaFin.split('T')[0];
     if ((j.diasTrabajados ?? 1) > 1) {
       const d = new Date(start + 'T12:00:00');
@@ -72,6 +79,8 @@ export default function CalendarioView({ jornadas, tecnicos, onRefresh, onNewJor
   const getJornadasForDay = (date: Date) => {
     const key = date.toISOString().split('T')[0];
     return filteredJornadas.filter(j => {
+      const individual = parseFechasIndividuales(j);
+      if (individual) return individual.includes(key);
       const start = j.fecha?.split('T')[0];
       const end = getEffectiveEnd(j);
       return key >= start && key <= end;
@@ -85,6 +94,8 @@ export default function CalendarioView({ jornadas, tecnicos, onRefresh, onNewJor
   const todayStr = new Date().toISOString().split('T')[0];
 
   const selectedJornadas = selectedDay ? filteredJornadas.filter(j => {
+    const individual = parseFechasIndividuales(j);
+    if (individual) return individual.includes(selectedDay);
     const start = j.fecha?.split('T')[0];
     const end = getEffectiveEnd(j);
     return selectedDay >= start && selectedDay <= end;
@@ -222,6 +233,14 @@ export default function CalendarioView({ jornadas, tecnicos, onRefresh, onNewJor
                     <p className="text-sm font-medium">{j.tecnico?.nombre}</p>
                     <p className="text-xs text-muted-foreground truncate">{j.project?.nombre}{j.project?.cliente ? ` — ${j.project.cliente}` : ''}</p>
                     {(() => {
+                      const individual = parseFechasIndividuales(j);
+                      if (individual && individual.length > 1) {
+                        return (
+                          <p className="text-xs text-primary font-medium">
+                            Días sueltos · {individual.length} días
+                          </p>
+                        );
+                      }
                       const end = getEffectiveEnd(j);
                       const start = j.fecha?.split('T')[0];
                       const dias = j.diasTrabajados ?? 1;
@@ -240,7 +259,19 @@ export default function CalendarioView({ jornadas, tecnicos, onRefresh, onNewJor
                     {j.horaEntrada && <p className="text-xs text-muted-foreground">{j.horaEntrada} — {j.horaSalida}</p>}
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-semibold">RD$ {(j.totalJornada || 0).toLocaleString()}</p>
+                    {(() => {
+                      const dias = Math.max(1, j.diasTrabajados ?? 1);
+                      const montoDia = (j.totalJornada || 0) / dias;
+                      const esMultiDia = dias > 1;
+                      return (
+                        <>
+                          <p className="text-sm font-semibold">RD$ {montoDia.toLocaleString('es-DO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
+                          {esMultiDia && (
+                            <p className="text-[10px] text-muted-foreground">de RD$ {(j.totalJornada || 0).toLocaleString()} total</p>
+                          )}
+                        </>
+                      );
+                    })()}
                     <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${ESTADO_DOT[j.estado] ? 'text-white' : ''}`}
                       style={{ backgroundColor: j.estado === 'aprobado' ? '#0D9488' : j.estado === 'pendiente' ? '#F59E0B' : undefined }}
                     >

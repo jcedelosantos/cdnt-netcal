@@ -5,6 +5,14 @@ import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 
 function calcDias(data: any): number {
+  // Individual days mode: use the count from fechasIndividuales
+  if (data.fechasIndividuales) {
+    try {
+      const arr = JSON.parse(data.fechasIndividuales);
+      if (Array.isArray(arr) && arr.length > 0) return arr.length;
+    } catch {}
+  }
+  // Range mode: calculate from date range
   if (data.fechaFin && data.fecha) {
     const d1 = new Date(data.fecha + 'T12:00:00');
     const d2 = new Date(data.fechaFin + 'T12:00:00');
@@ -121,6 +129,7 @@ export async function POST(request: Request) {
         observaciones: data.observaciones || null,
         estado: data.estado || 'presente',
         aprobadoPor: data.aprobadoPor || null,
+        fechasIndividuales: data.fechasIndividuales ?? null,
       },
       include: {
         tecnico: { select: { id: true, nombre: true, codigo: true } },

@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Plus, Loader2, DollarSign, CheckCircle2, Clock, AlertTriangle, X, FileText } from 'lucide-react';
+import { Plus, Loader2, DollarSign, CheckCircle2, Clock, AlertTriangle, X, FileText, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -39,6 +39,8 @@ export default function PagosDashboard({ tecnicos, jornadas, onRefresh }: Props)
   const [loading, setLoading] = useState(true);
   const [showNuevoPeriodo, setShowNuevoPeriodo] = useState(false);
   const [showAnticipoForm, setShowAnticipoForm] = useState(false);
+  const [showAnticiposModal, setShowAnticiposModal] = useState(false);
+  const [editandoAnticipo, setEditandoAnticipo] = useState<any>(null);
   const [selectedPeriodo, setSelectedPeriodo] = useState<any>(null);
   const [cerrando, setCerrando] = useState('');
   const [empresa, setEmpresa] = useState<any>({});
@@ -94,6 +96,30 @@ export default function PagosDashboard({ tecnicos, jornadas, onRefresh }: Props)
     }
   };
 
+  const handleEliminarAnticipo = async (id: string, nombre: string, monto: number) => {
+    if (!confirm(`¿Eliminar el anticipo de ${nombre} por RD$ ${monto.toLocaleString()}? Esta acción no se puede deshacer.`)) return;
+    const res = await fetch(`/api/anticipos/${id}`, { method: 'DELETE' });
+    if (res.ok) { loadPeriodos(); onRefresh(); }
+    else { const d = await res.json(); alert(d.error ?? 'Error al eliminar anticipo'); }
+  };
+
+  const handleGuardarAnticipo = async (id: string, data: any) => {
+    const res = await fetch(`/api/anticipos/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (res.ok) { setEditandoAnticipo(null); loadPeriodos(); }
+    else { const d = await res.json(); alert(d.error ?? 'Error al guardar'); }
+  };
+
+  const handleEliminarPeriodo = async (p: any) => {
+    if (!confirm(`¿Eliminar el periodo "${p.nombre}"? Las jornadas quedarán sin pagar y los anticipos se restaurarán. Esta acción no se puede deshacer.`)) return;
+    const res = await fetch(`/api/periodos-pago/${p.id}`, { method: 'DELETE' });
+    if (res.ok) { loadPeriodos(); onRefresh(); }
+    else { const d = await res.json(); alert(d.error ?? 'Error al eliminar periodo'); }
+  };
+
   const exportPDF = async (p: any) => {
     const { default: jsPDF } = await import('jspdf');
     const { default: autoTable } = await import('jspdf-autotable');
@@ -130,7 +156,7 @@ export default function PagosDashboard({ tecnicos, jornadas, onRefresh }: Props)
     const tableY = titleY + 18;
     const rows = (p.detalles ?? []).map((d: any) => {
       const tec = tecnicos.find((t: any) => t.id === d.tecnicoId);
-      const jornadasTec = jornadas.filter((j: any) => j.tecnicoId === d.tecnicoId && j.periodoPagoId === p.id);
+      const jornadasTec = (p.jornadas ?? jornadas).filter((j: any) => j.tecnicoId === d.tecnicoId);
       const starts = jornadasTec.map((j: any) => j.fecha?.split('T')[0]).sort();
       const ends = jornadasTec.map((j: any) => (j.fechaFin ? j.fechaFin.split('T')[0] : j.fecha?.split('T')[0])).sort();
       const rango = starts.length > 0 ? fmtRango(starts[0], ends[ends.length - 1]) : '—';
@@ -245,7 +271,7 @@ export default function PagosDashboard({ tecnicos, jornadas, onRefresh }: Props)
     const pageH = doc.internal.pageSize.getHeight();
 
     const tec = tecnicos.find((t: any) => t.id === d.tecnicoId);
-    const jornadasTec = jornadas.filter((j: any) => j.tecnicoId === d.tecnicoId && j.periodoPagoId === p.id);
+    const jornadasTec = (p.jornadas ?? jornadas).filter((j: any) => j.tecnicoId === d.tecnicoId);
 
     // Encabezado empresa
     const headerH = await buildHeader(doc, pageW);
@@ -323,6 +349,21 @@ export default function PagosDashboard({ tecnicos, jornadas, onRefresh }: Props)
     doc.text('Pago bruto:', colL, sumY);
     doc.text(`RD$ ${(d.pagoBruto || 0).toLocaleString()}`, pageW - 14, sumY, { align: 'right' });
     let offsetY = 6;
+    if (d.viaticos > 0) {
+      doc.text('Viáticos:', colL, sumY + offsetY);
+      doc.text(`+ RD$ ${d.viaticos.toLocaleString()}`, pageW - 14, sumY + offsetY, { align: 'right' });
+      offsetY += 6;
+    }
+    if (d.transporte > 0) {
+      doc.text('Transporte:', colL, sumY + offsetY);
+      doc.text(`+ RD$ ${d.transporte.toLocaleString()}`, pageW - 14, sumY + offsetY, { align: 'right' });
+      offsetY += 6;
+    }
+    if (d.alimentacion > 0) {
+      doc.text('Alimentación:', colL, sumY + offsetY);
+      doc.text(`+ RD$ ${d.alimentacion.toLocaleString()}`, pageW - 14, sumY + offsetY, { align: 'right' });
+      offsetY += 6;
+    }
     if (d.bonificaciones > 0) {
       doc.text('Bonificaciones:', colL, sumY + offsetY);
       doc.text(`+ RD$ ${d.bonificaciones.toLocaleString()}`, pageW - 14, sumY + offsetY, { align: 'right' });
@@ -398,6 +439,117 @@ export default function PagosDashboard({ tecnicos, jornadas, onRefresh }: Props)
 
   return (
     <div className="space-y-5">
+
+      {/* Modal anticipos */}
+      {showAnticiposModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between p-5 border-b">
+              <h2 className="text-lg font-bold">Anticipos sin aplicar</h2>
+              <button onClick={() => { setShowAnticiposModal(false); setEditandoAnticipo(null); }}>
+                <X className="w-5 h-5 text-muted-foreground" />
+              </button>
+            </div>
+            <div className="overflow-y-auto flex-1 p-4 space-y-3">
+              {pendientesAnticipo.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8 text-sm">No hay anticipos pendientes</p>
+              ) : pendientesAnticipo.map(a => (
+                <div key={a.id} className="border rounded-xl p-3 space-y-2">
+                  {editandoAnticipo?.id === a.id ? (
+                    /* Modo edición */
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-xs text-muted-foreground">Fecha</label>
+                          <input type="date" className="w-full border rounded-md px-2 py-1.5 text-sm"
+                            value={editandoAnticipo.fecha?.split('T')[0] ?? ''}
+                            onChange={e => setEditandoAnticipo((p: any) => ({ ...p, fecha: e.target.value }))} />
+                        </div>
+                        <div>
+                          <label className="text-xs text-muted-foreground">Monto (RD$)</label>
+                          <input type="number" className="w-full border rounded-md px-2 py-1.5 text-sm"
+                            value={editandoAnticipo.monto ?? ''}
+                            onChange={e => setEditandoAnticipo((p: any) => ({ ...p, monto: e.target.value }))} />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-xs text-muted-foreground">Motivo</label>
+                          <select className="w-full border rounded-md px-2 py-1.5 text-sm"
+                            value={editandoAnticipo.motivo ?? ''}
+                            onChange={e => setEditandoAnticipo((p: any) => ({ ...p, motivo: e.target.value }))}>
+                            <option value="">Seleccionar...</option>
+                            <option value="Almuerzo">Almuerzo</option>
+                            <option value="Cena">Cena</option>
+                            <option value="Transporte">Transporte</option>
+                            <option value="Anticipo">Anticipo</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-xs text-muted-foreground">Método de pago</label>
+                          <select className="w-full border rounded-md px-2 py-1.5 text-sm"
+                            value={editandoAnticipo.metodoPago ?? ''}
+                            onChange={e => setEditandoAnticipo((p: any) => ({ ...p, metodoPago: e.target.value }))}>
+                            <option value="">Seleccionar...</option>
+                            <option value="Efectivo">Efectivo</option>
+                            <option value="Transferencia">Transferencia</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">Autorizado por</label>
+                        <select className="w-full border rounded-md px-2 py-1.5 text-sm"
+                          value={editandoAnticipo.autorizadoPor ?? ''}
+                          onChange={e => setEditandoAnticipo((p: any) => ({ ...p, autorizadoPor: e.target.value }))}>
+                          <option value="">Seleccionar...</option>
+                          <option value="Javis Cedano">Javis Cedano</option>
+                          <option value="Anny Chalas">Anny Chalas</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">Referencia</label>
+                        <input type="text" className="w-full border rounded-md px-2 py-1.5 text-sm"
+                          value={editandoAnticipo.referencia ?? ''}
+                          onChange={e => setEditandoAnticipo((p: any) => ({ ...p, referencia: e.target.value }))} />
+                      </div>
+                      <div className="flex gap-2 justify-end pt-1">
+                        <button className="text-xs px-3 py-1.5 border rounded-md hover:bg-muted"
+                          onClick={() => setEditandoAnticipo(null)}>Cancelar</button>
+                        <button className="text-xs px-3 py-1.5 bg-primary text-white rounded-md hover:bg-primary/90"
+                          onClick={() => handleGuardarAnticipo(a.id, editandoAnticipo)}>Guardar</button>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Vista normal */
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-medium text-sm">{a.tecnico?.nombre}</p>
+                        <p className="text-lg font-bold text-primary">RD$ {a.monto.toLocaleString()}</p>
+                        <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+                          <span className="text-xs text-muted-foreground">{new Date(a.fecha).toLocaleDateString('es-DO', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                          {a.motivo && <span className="text-xs text-muted-foreground">{a.motivo}</span>}
+                          {a.metodoPago && <span className="text-xs text-muted-foreground">{a.metodoPago}</span>}
+                          {a.autorizadoPor && <span className="text-xs text-muted-foreground">Auth: {a.autorizadoPor}</span>}
+                          {a.referencia && <span className="text-xs text-muted-foreground">Ref: {a.referencia}</span>}
+                        </div>
+                      </div>
+                      <div className="flex gap-1 shrink-0">
+                        <button className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                          title="Editar" onClick={() => setEditandoAnticipo({ ...a })}>✏️</button>
+                        <button className="p-1.5 rounded-lg hover:bg-red-50 text-red-400 hover:text-red-600 transition-colors"
+                          title="Eliminar" onClick={() => handleEliminarAnticipo(a.id, a.tecnico?.nombre ?? '', a.monto)}>
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <div className="bg-white border rounded-xl p-4 flex items-start gap-3">
@@ -407,13 +559,17 @@ export default function PagosDashboard({ tecnicos, jornadas, onRefresh }: Props)
             <p className="text-xl font-bold">RD$ {totalPendientePago.toLocaleString()}</p>
           </div>
         </div>
-        <div className="bg-white border rounded-xl p-4 flex items-start gap-3">
+        <button
+          className="bg-white border rounded-xl p-4 flex items-start gap-3 hover:border-red-300 hover:bg-red-50/30 transition-colors text-left w-full"
+          onClick={() => setShowAnticiposModal(true)}
+        >
           <div className="p-2 bg-red-50 rounded-lg"><AlertTriangle className="w-5 h-5 text-red-500" /></div>
           <div>
             <p className="text-xs text-muted-foreground">Anticipos sin aplicar</p>
             <p className="text-xl font-bold">{pendientesAnticipo.length}</p>
+            <p className="text-[10px] text-red-500 mt-0.5">Ver y gestionar →</p>
           </div>
-        </div>
+        </button>
         <div className="bg-white border rounded-xl p-4 flex items-start gap-3">
           <div className="p-2 bg-emerald-50 rounded-lg"><CheckCircle2 className="w-5 h-5 text-emerald-600" /></div>
           <div>
@@ -444,7 +600,14 @@ export default function PagosDashboard({ tecnicos, jornadas, onRefresh }: Props)
             <p className="font-medium text-amber-800 text-sm">Anticipos pendientes de aplicar</p>
             <div className="mt-1 space-y-0.5">
               {pendientesAnticipo.map(a => (
-                <p key={a.id} className="text-xs text-amber-700">• {a.tecnico?.nombre} — RD$ {a.monto.toLocaleString()} ({new Date(a.fecha).toLocaleDateString('es-DO')})</p>
+                <div key={a.id} className="flex items-center justify-between gap-2">
+                  <p className="text-xs text-amber-700">• {a.tecnico?.nombre} — RD$ {a.monto.toLocaleString()} ({new Date(a.fecha).toLocaleDateString('es-DO')})</p>
+                  <button
+                    onClick={() => handleEliminarAnticipo(a.id, a.tecnico?.nombre ?? '', a.monto)}
+                    className="text-xs text-red-500 hover:text-red-700 hover:bg-red-50 px-1.5 py-0.5 rounded transition-colors shrink-0"
+                    title="Eliminar anticipo"
+                  >✕</button>
+                </div>
               ))}
             </div>
             <p className="text-xs text-amber-600 mt-1">Se aplicarán automáticamente en el próximo cierre.</p>
@@ -497,6 +660,15 @@ export default function PagosDashboard({ tecnicos, jornadas, onRefresh }: Props)
                       <FileText className="w-4 h-4" />
                       PDF
                     </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="shrink-0 text-destructive hover:bg-destructive/10 px-2"
+                      onClick={() => handleEliminarPeriodo(p)}
+                      title="Eliminar periodo"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
                   </div>
                 </div>
 
@@ -506,10 +678,10 @@ export default function PagosDashboard({ tecnicos, jornadas, onRefresh }: Props)
                     {p.detalles.map((d: any) => {
                       const tec = tecnicos.find(t => t.id === d.tecnicoId);
                       // Jornadas de este técnico en este período
-                      const jornadasTec = jornadas.filter(j => j.tecnicoId === d.tecnicoId && j.periodoPagoId === p.id);
+                      const jornadasTec = (p.jornadas ?? jornadas).filter((j: any) => j.tecnicoId === d.tecnicoId);
                       const fechasRango = jornadasTec.length > 0 ? (() => {
-                        const starts = jornadasTec.map(j => j.fecha?.split('T')[0]).sort();
-                        const ends = jornadasTec.map(j => j.fechaFin ? j.fechaFin.split('T')[0] : j.fecha?.split('T')[0]).sort();
+                        const starts = jornadasTec.map((j: any) => j.fecha?.split('T')[0]).sort();
+                        const ends = jornadasTec.map((j: any) => j.fechaFin ? j.fechaFin.split('T')[0] : j.fecha?.split('T')[0]).sort();
                         return fmtRango(starts[0], ends[ends.length - 1]);
                       })() : null;
                       return (
@@ -697,12 +869,22 @@ function AnticipoModal({ tecnicos, onClose, onSaved }: { tecnicos: any[]; onClos
           </div>
           <div>
             <Label>Motivo</Label>
-            <Input value={form.motivo} onChange={e => set('motivo', e.target.value)} placeholder="Motivo del anticipo" />
+            <select className="w-full border rounded-md px-3 py-2 text-sm" value={form.motivo} onChange={e => set('motivo', e.target.value)}>
+              <option value="">Seleccionar...</option>
+              <option value="Almuerzo">Almuerzo</option>
+              <option value="Cena">Cena</option>
+              <option value="Transporte">Transporte</option>
+              <option value="Anticipo">Anticipo</option>
+            </select>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Método de pago</Label>
-              <Input value={form.metodoPago} onChange={e => set('metodoPago', e.target.value)} placeholder="Efectivo, transferencia..." />
+              <select className="w-full border rounded-md px-3 py-2 text-sm" value={form.metodoPago} onChange={e => set('metodoPago', e.target.value)}>
+                <option value="">Seleccionar...</option>
+                <option value="Efectivo">Efectivo</option>
+                <option value="Transferencia">Transferencia</option>
+              </select>
             </div>
             <div>
               <Label>Referencia</Label>
@@ -711,7 +893,11 @@ function AnticipoModal({ tecnicos, onClose, onSaved }: { tecnicos: any[]; onClos
           </div>
           <div>
             <Label>Autorizado por</Label>
-            <Input value={form.autorizadoPor} onChange={e => set('autorizadoPor', e.target.value)} />
+            <select className="w-full border rounded-md px-3 py-2 text-sm" value={form.autorizadoPor} onChange={e => set('autorizadoPor', e.target.value)}>
+              <option value="">Seleccionar...</option>
+              <option value="Javis Cedano">Javis Cedano</option>
+              <option value="Anny Chalas">Anny Chalas</option>
+            </select>
           </div>
           <div className="flex gap-2 justify-end">
             <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>

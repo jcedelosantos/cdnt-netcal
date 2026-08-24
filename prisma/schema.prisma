@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-    provider = "sqlite"
+    provider = "postgresql"
     url      = env("DATABASE_URL")
 }
 
@@ -436,8 +436,9 @@ model Jornada {
   asignacionId    String?
   userId          String
   fecha           DateTime
-  fechaFin        DateTime?
-  diasTrabajados  Int      @default(1)
+  fechaFin             DateTime?
+  diasTrabajados       Int      @default(1)
+  fechasIndividuales   String?  // JSON array of date strings e.g. ["2026-06-14","2026-06-16"]
   horaEntrada     String?
   horaSalida      String?
   horasTotales    Float    @default(0)
