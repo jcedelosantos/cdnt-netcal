@@ -18,7 +18,7 @@ export async function GET() {
     const user = await withRetry(() => prisma.user.findUnique({
       where: { id: userId },
       select: {
-        name: true, email: true,
+        name: true, email: true, password: false,
         empresaNombre: true, empresaRNC: true, empresaTelefono: true,
         empresaDireccion: true, empresaEmail: true, empresaLogo: true,
         empresaBanco: true, empresaCuenta: true, empresaTipoCuenta: true, empresaNombreCuenta: true,

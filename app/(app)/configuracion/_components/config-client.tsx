@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { FadeIn } from '@/components/ui/animate';
-import { Building2, Save, Upload, Trash2, Image as ImageIcon, CreditCard, CalendarClock } from 'lucide-react';
+import { Building2, Save, Upload, Trash2, Image as ImageIcon, CreditCard, CalendarClock, UserCog, Eye, EyeOff } from 'lucide-react';
+import { useSession } from 'next-auth/react';
 
 interface EmpresaConfig {
   empresaNombre: string;
@@ -31,15 +32,27 @@ const VACIO: EmpresaConfig = {
 };
 
 export default function ConfigClient() {
+  const { data: session } = useSession();
   const [config, setConfig] = useState<EmpresaConfig>(VACIO);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  // Cuenta
+  const [nombre, setNombre] = useState('');
+  const [email, setEmail] = useState('');
+  const [passActual, setPassActual] = useState('');
+  const [passNuevo, setPassNuevo] = useState('');
+  const [passConfirm, setPassConfirm] = useState('');
+  const [showPass, setShowPass] = useState(false);
+  const [savingCuenta, setSavingCuenta] = useState(false);
 
   const fetchConfig = useCallback(async () => {
     try {
       const res = await fetch('/api/configuracion');
       const data = await res.json();
       if (res.ok && data?.config) {
+        setNombre(data.config.name ?? '');
+        setEmail(data.config.email ?? '');
         setConfig({
           empresaNombre: data.config.empresaNombre ?? '',
           empresaRNC: data.config.empresaRNC ?? '',
@@ -80,6 +93,35 @@ export default function ConfigClient() {
     const reader = new FileReader();
     reader.onload = () => setField('empresaLogo', String(reader.result ?? ''));
     reader.readAsDataURL(file);
+  };
+
+  const handleSaveCuenta = async () => {
+    if (passNuevo && passNuevo !== passConfirm) {
+      toast.error('Las contraseñas nuevas no coinciden');
+      return;
+    }
+    if (passNuevo && passNuevo.length < 6) {
+      toast.error('La contraseña debe tener al menos 6 caracteres');
+      return;
+    }
+    setSavingCuenta(true);
+    try {
+      const body: any = { name: nombre, email };
+      if (passNuevo) { body.passwordActual = passActual; body.passwordNuevo = passNuevo; }
+      const res = await fetch('/api/cuenta', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) { toast.error(d?.error ?? 'Error al guardar'); return; }
+      toast.success('Cuenta actualizada');
+      setPassActual(''); setPassNuevo(''); setPassConfirm('');
+    } catch {
+      toast.error('Error al guardar');
+    } finally {
+      setSavingCuenta(false);
+    }
   };
 
   const handleSave = async () => {
@@ -211,6 +253,56 @@ export default function ConfigClient() {
                   La cotización mostrará "Válida hasta" sumando estos días a la fecha del proyecto.
                 </p>
               </div>
+            </div>
+          </CardContent>
+        </Card>
+      </FadeIn>
+
+      <FadeIn>
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle className="font-display text-base flex items-center gap-2">
+              <UserCog className="w-4 h-4 text-primary" /> Mi cuenta
+            </CardTitle>
+            <CardDescription>Nombre, correo de acceso y contraseña</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Nombre</Label>
+                <Input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Tu nombre" />
+              </div>
+              <div className="space-y-2">
+                <Label>Correo de acceso</Label>
+                <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="correo@ejemplo.com" />
+              </div>
+            </div>
+            <div className="border-t pt-4">
+              <p className="text-sm font-medium mb-3">Cambiar contraseña <span className="text-muted-foreground font-normal">(opcional)</span></p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Contraseña actual</Label>
+                  <div className="relative">
+                    <Input type={showPass ? 'text' : 'password'} value={passActual} onChange={(e) => setPassActual(e.target.value)} placeholder="••••••••" />
+                    <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground" onClick={() => setShowPass(v => !v)}>
+                      {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Contraseña nueva</Label>
+                  <Input type={showPass ? 'text' : 'password'} value={passNuevo} onChange={(e) => setPassNuevo(e.target.value)} placeholder="••••••••" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Confirmar nueva</Label>
+                  <Input type={showPass ? 'text' : 'password'} value={passConfirm} onChange={(e) => setPassConfirm(e.target.value)} placeholder="••••••••" />
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end pt-2">
+              <Button onClick={handleSaveCuenta} disabled={savingCuenta} className="bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-700 hover:to-teal-600">
+                <Save className="w-4 h-4 mr-2" /> {savingCuenta ? 'Guardando...' : 'Guardar cuenta'}
+              </Button>
             </div>
           </CardContent>
         </Card>
