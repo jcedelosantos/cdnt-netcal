@@ -85,6 +85,7 @@ export default function ProjectDetailClient({ projectId }: Props) {
   const [showAddMaterial, setShowAddMaterial] = useState(false);
   const [newMaterial, setNewMaterial] = useState({ categoria: 'Adicionales', nombre: '', cantidad: 1, unidad: 'und', precioUnit: 0 });
   const [savingMaterial, setSavingMaterial] = useState(false);
+  const [precioSugerido, setPrecioSugerido] = useState<{ precio: number; suplidor: string | null; fecha: string } | null>(null);
   const [collapsedCats, setCollapsedCats] = useState<Record<string, boolean>>({});
   const [facturando, setFacturando] = useState(false);
   const [editandoNcf, setEditandoNcf] = useState(false);
@@ -161,6 +162,7 @@ export default function ProjectDetailClient({ projectId }: Props) {
       toast.success('Material agregado');
       setShowAddMaterial(false);
       setNewMaterial({ categoria: 'Adicionales', nombre: '', cantidad: 1, unidad: 'und', precioUnit: 0 });
+      setPrecioSugerido(null);
       fetchProject();
     } catch {
       toast.error('Error al agregar material');
@@ -823,7 +825,17 @@ export default function ProjectDetailClient({ projectId }: Props) {
                 <div className="lg:col-span-2 space-y-1">
                   <label className="text-xs text-muted-foreground">Nombre *</label>
                   <Input placeholder="Ej: Caja de paso 4x4" value={newMaterial.nombre}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewMaterial((p) => ({ ...p, nombre: e.target.value }))} />
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                      const nombre = e.target.value;
+                      setNewMaterial((p) => ({ ...p, nombre }));
+                      setPrecioSugerido(null);
+                      if (nombre.length >= 3) {
+                        fetch(`/api/precios-referencia/sugerido?nombre=${encodeURIComponent(nombre)}`)
+                          .then(r => r.json())
+                          .then(d => { if (d.sugerido) setPrecioSugerido({ precio: d.sugerido.precio, suplidor: d.sugerido.suplidor, fecha: d.sugerido.fecha }); })
+                          .catch(() => {});
+                      }
+                    }} />
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs text-muted-foreground">Categoría</label>
@@ -863,7 +875,19 @@ export default function ProjectDetailClient({ projectId }: Props) {
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewMaterial((p) => ({ ...p, unidad: e.target.value }))} />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">Precio unit.</label>
+                  <label className="text-xs text-muted-foreground flex items-center gap-1">
+                    Precio unit.
+                    {precioSugerido && (
+                      <button
+                        type="button"
+                        className="text-[10px] text-blue-500 hover:text-blue-700 underline ml-1"
+                        onClick={() => setNewMaterial(p => ({ ...p, precioUnit: precioSugerido.precio }))}
+                        title={`Suplidor: ${precioSugerido.suplidor ?? '—'} | ${new Date(precioSugerido.fecha).toLocaleDateString('es-DO')}`}
+                      >
+                        sugerido: {new Intl.NumberFormat('es-DO', { maximumFractionDigits: 0 }).format(precioSugerido.precio)} ↑
+                      </button>
+                    )}
+                  </label>
                   <Input type="number" min={0} step={0.01} placeholder="0.00" value={newMaterial.precioUnit || ''}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewMaterial((p) => ({ ...p, precioUnit: parseFloat(e.target.value) || 0 }))} />
                 </div>

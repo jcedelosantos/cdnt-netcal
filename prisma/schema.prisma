@@ -28,9 +28,10 @@ model User {
   validezCotizacion    Int      @default(30)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
-  accounts      Account[]
-  sessions      Session[]
-  projects      Project[]
+  accounts          Account[]
+  sessions          Session[]
+  projects          Project[]
+  preciosReferencia PrecioReferencia[]
 }
 
 model Account {
@@ -630,4 +631,24 @@ model AlertLog {
   @@index([userId])
   @@index([estado])
   @@index([createdAt])
+}
+
+model PrecioReferencia {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  nombre    String
+  categoria String?
+  suplidor  String?
+  precio    Float
+  unidad    String   @default("und")
+  fuente    String?  // "cotizacion" | "factura"
+  fecha     DateTime
+  notas     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([nombre])
+  @@index([fecha])
 }
