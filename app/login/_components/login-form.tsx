@@ -11,7 +11,7 @@ import { Network, Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
 
-export default function LoginForm() {
+export default function LoginForm({ signupOpen = false }: { signupOpen?: boolean }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -101,12 +101,14 @@ export default function LoginForm() {
                 {loading ? 'Ingresando...' : 'Ingresar'}
               </Button>
             </form>
-            <p className="mt-4 text-center text-sm text-muted-foreground">
-              ¿No tiene cuenta?{' '}
-              <Link href="/registro" className="text-primary font-medium hover:underline">
-                Registrarse
-              </Link>
-            </p>
+            {signupOpen && (
+              <p className="mt-4 text-center text-sm text-muted-foreground">
+                ¿No tiene cuenta?{' '}
+                <Link href="/registro" className="text-primary font-medium hover:underline">
+                  Registrarse
+                </Link>
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>

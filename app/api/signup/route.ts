@@ -4,8 +4,12 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { withRetry } from '@/lib/db-utils';
 import bcrypt from 'bcryptjs';
+import { isSignupOpen } from '@/lib/signup';
 
 export async function POST(req: Request) {
+  if (!isSignupOpen()) {
+    return NextResponse.json({ error: 'El registro está cerrado' }, { status: 403 });
+  }
   try {
     const body = await req.json();
     const { email, password, name } = body ?? {};
