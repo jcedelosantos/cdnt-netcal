@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 import {
   Network, LayoutDashboard, FolderOpen,
   LogOut, Menu, X, ChevronLeft, ChevronDown, User, Settings,
-  FileSpreadsheet, Package, Bell, TrendingUp, HardHat, BarChart2, Tags,
+  FileSpreadsheet, Package, Bell, TrendingUp, HardHat, BarChart2, Tags, Globe,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -32,6 +32,7 @@ const nav: NavEntry[] = [
     group: true, label: 'Configuración', icon: Settings,
     items: [
       { href: '/precios-referencia', label: 'Precios referencia', icon: Tags },
+      { href: '/estimador-web',      label: 'Estimador web',      icon: Globe },
       { href: '/alertas',       label: 'Alertas',        icon: Bell },
       { href: '/configuracion', label: 'Configuración',  icon: Settings },
     ],

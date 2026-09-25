@@ -32,6 +32,7 @@ model User {
   sessions          Session[]
   projects          Project[]
   preciosReferencia PrecioReferencia[]
+  estimadorConfig   EstimadorConfig?
 }
 
 model Account {
@@ -103,6 +104,7 @@ model Project {
   costoCertificacion  Float    @default(0)
   itbis               Float    @default(18)
   notas               String?
+  origen              String   @default("interno") // "interno" | "web" (estimador de cedanet.net)
   inventoryClientId   String?  // Link a cliente de inventario
   inventoryClient     InventoryClient? @relation(fields: [inventoryClientId], references: [id], onDelete: SetNull)
   createdAt           DateTime @default(now())
@@ -116,6 +118,7 @@ model Project {
 
   @@index([userId])
   @@index([inventoryClientId])
+  @@index([origen])
 }
 
 model ProjectPoint {
@@ -651,4 +654,36 @@ model PrecioReferencia {
   @@index([userId])
   @@index([nombre])
   @@index([fecha])
+}
+
+// ============================================
+// ESTIMADOR WEB (cedanet.net)
+// ============================================
+
+// Configuración del estimador público. Sus proyectos se crean a nombre de userId.
+model EstimadorConfig {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activo            Boolean  @default(false)
+  margen            Float    @default(40) // % sobre el precio de referencia
+  rangoPct          Float    @default(15) // ancho del rango mostrado (+/-)
+  manoObraPorCamara Float    @default(0)
+  costoFijo         Float    @default(0) // configuración, transporte, etc.
+  itbis             Float    @default(18)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  materiales        EstimadorMaterial[]
+}
+
+// Qué precio de referencia usa cada material del motor de cálculo
+model EstimadorMaterial {
+  id               String          @id @default(cuid())
+  configId         String
+  config           EstimadorConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+  materialNombre   String // nombre que genera lib/calculations.ts
+  referenciaNombre String? // nombre en PrecioReferencia (se usa el más reciente)
+  incluir          Boolean         @default(true)
+
+  @@unique([configId, materialNombre])
 }
