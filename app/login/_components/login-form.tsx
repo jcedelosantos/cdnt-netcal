@@ -65,7 +65,7 @@ export default function LoginForm({ signupOpen = false }: { signupOpen?: boolean
             <Network className="w-7 h-7 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-display font-bold tracking-tight text-white">RedCalc</h1>
+            <h1 className="text-2xl font-display font-bold tracking-tight text-white">NetPlanner</h1>
             <p className="text-xs text-slate-400">Calculadora de Materiales</p>
           </div>
         </div>

@@ -100,10 +100,10 @@ export default function AppSidebar({ user, empresa }: { user: any; empresa?: { n
           {!collapsed && (
             <div className="overflow-hidden">
               <h1 className="text-base font-display font-bold tracking-tight leading-tight truncate">
-                {empresa?.nombre ?? 'RedCalc'}
+                {empresa?.nombre ?? 'NetPlanner'}
               </h1>
               <p className="text-[10px] text-muted-foreground truncate">
-                {empresa?.nombre ? 'RedCalc · Materiales para Redes' : 'Materiales para Redes'}
+                {empresa?.nombre ? 'NetPlanner · Materiales para Redes' : 'Materiales para Redes'}
               </p>
             </div>
           )}

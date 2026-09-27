@@ -69,7 +69,7 @@ export default function RegisterForm() {
             <Network className="w-7 h-7 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-display font-bold tracking-tight">RedCalc</h1>
+            <h1 className="text-2xl font-display font-bold tracking-tight">NetPlanner</h1>
             <p className="text-xs text-muted-foreground">Calculadora de Materiales</p>
           </div>
         </div>

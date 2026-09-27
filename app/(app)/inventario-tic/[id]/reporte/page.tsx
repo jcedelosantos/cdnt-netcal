@@ -357,7 +357,7 @@ export default function ReportePage() {
         const h = doc.internal.pageSize.getHeight();
         doc.setFontSize(8);
         doc.setTextColor(170, 170, 170);
-        doc.text('Generado con RedCalc', mX, h - 20);
+        doc.text('Generado con NetPlanner', mX, h - 20);
         doc.text(`Página ${i} de ${pages}`, pageW - mX, h - 20, { align: 'right' });
       }
 
@@ -375,7 +375,7 @@ export default function ReportePage() {
     try {
       const ExcelJS = (await import('exceljs')).default;
       const wb = new ExcelJS.Workbook();
-      wb.creator = 'RedCalc';
+      wb.creator = 'NetPlanner';
       wb.created = new Date();
 
       const emp = empresa ?? null;

@@ -229,7 +229,7 @@ export default function PagosDashboard({ tecnicos, jornadas, onRefresh }: Props)
     doc.setFontSize(7.5);
     doc.setTextColor(150);
     doc.text(empresa.empresaNombre || '', 14, pageH - 10);
-    doc.text(`Generado con RedCalc · ${fmtHoy()}`, pageW - 14, pageH - 10, { align: 'right' });
+    doc.text(`Generado con NetPlanner · ${fmtHoy()}`, pageW - 14, pageH - 10, { align: 'right' });
 
     const filename = `nomina-${p.nombre.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}.pdf`;
     doc.save(filename);
@@ -428,7 +428,7 @@ export default function PagosDashboard({ tecnicos, jornadas, onRefresh }: Props)
     doc.line(14, pageH - 14, pageW - 14, pageH - 14);
     doc.setFontSize(7.5); doc.setTextColor(150);
     doc.text(empresa.empresaNombre || '', 14, pageH - 8);
-    doc.text(`Generado con RedCalc · ${fmtHoy()}`, pageW - 14, pageH - 8, { align: 'right' });
+    doc.text(`Generado con NetPlanner · ${fmtHoy()}`, pageW - 14, pageH - 8, { align: 'right' });
 
     const nombre = (tec?.nombre ?? 'tecnico').replace(/\s+/g, '-').toLowerCase();
     doc.save(`recibo-${nombre}-${p.nombre.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}.pdf`);

@@ -1,5 +1,5 @@
 /**
- * Exportadores de reportes/cotizaciones de RedCalc.
+ * Exportadores de reportes/cotizaciones de NetPlanner.
  * Generan PDF, Excel (.xlsx) y Word (.docx) en el navegador.
  * El CSV se mantiene en el componente por simplicidad.
  */
@@ -386,7 +386,7 @@ export async function exportarPDF(data: ExportData) {
     const h = doc.internal.pageSize.getHeight();
     doc.setFontSize(8);
     doc.setTextColor(170, 170, 170);
-    doc.text('Generado con RedCalc', mX, h - 20);
+    doc.text('Generado con NetPlanner', mX, h - 20);
     doc.text(`Página ${i} de ${pages}`, pageW - mX, h - 20, { align: 'right' });
   }
 
@@ -401,7 +401,7 @@ export async function exportarExcel(data: ExportData) {
   const sim = simboloMoneda(data.moneda);
   const numFmtMoneda = `"${sim}" #,##0.00`;
   const wb = new ExcelJS.Workbook();
-  wb.creator = 'RedCalc';
+  wb.creator = 'NetPlanner';
   wb.created = new Date();
   const ws = wb.addWorksheet('Materiales');
   const emp = data.empresa;
@@ -533,7 +533,7 @@ export async function exportarWord(data: ExportData) {
 
   const children: any[] = [];
 
-  // Encabezado: membrete de empresa si está configurado, si no marca RedCalc
+  // Encabezado: membrete de empresa si está configurado, si no marca NetPlanner
   const tieneEmpresa = !!(emp?.nombre);
   if (emp?.logo) {
     try {
@@ -557,7 +557,7 @@ export async function exportarWord(data: ExportData) {
     if (emp?.direccion) children.push(new Paragraph({ children: [new TextRun({ text: emp.direccion, size: 16, color: '666666' })] }));
   } else {
     children.push(
-      new Paragraph({ children: [new TextRun({ text: 'RedCalc', bold: true, size: 40, color: BLUE })] }),
+      new Paragraph({ children: [new TextRun({ text: 'NetPlanner', bold: true, size: 40, color: BLUE })] }),
       new Paragraph({ children: [new TextRun({ text: 'Cálculo de Materiales para Redes y CCTV', size: 18, color: '666666' })] }),
     );
   }
@@ -710,7 +710,7 @@ export interface Fila607 {
 export async function exportarReporte607(filas: Fila607[], mes: number, año: number, empresaNombre?: string) {
   const ExcelJS = (await import('exceljs')).default;
   const wb = new ExcelJS.Workbook();
-  wb.creator = 'RedCalc';
+  wb.creator = 'NetPlanner';
   wb.created = new Date();
   const ws = wb.addWorksheet('Hoja1');
 

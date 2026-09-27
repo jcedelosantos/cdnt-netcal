@@ -12,7 +12,7 @@ const jakartaSans = Plus_Jakarta_Sans({ subsets: ['latin'], variable: '--font-di
 const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mono' });
 
 export const metadata = {
-  title: 'RedCalc - Calculadora de Materiales para Redes',
+  title: 'NetPlanner - Calculadora de Materiales para Redes',
   description: 'Aplicación profesional para cálculo automático de materiales en proyectos de redes, cableado estructurado y CCTV',
   metadataBase: new URL(process.env.NEXTAUTH_URL || 'http://localhost:3000'),
   icons: {

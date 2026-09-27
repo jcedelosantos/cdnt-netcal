@@ -9,7 +9,7 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   const wb = new ExcelJS.Workbook();
-  wb.creator = 'RedCalc';
+  wb.creator = 'NetPlanner';
   wb.created = new Date();
 
   // Hoja de datos
