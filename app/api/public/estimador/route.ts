@@ -6,7 +6,7 @@ import { prisma } from '@/lib/prisma';
 import { DEFINICIONES, areaSchema, estimar, verificarFirma } from '@/lib/estimador';
 
 // Llamado solo desde el servidor de cedanet.net, firmado con ESTIMADOR_SECRET.
-// No devuelve costos, margen ni desglose: solo el rango de precio.
+// No devuelve costos ni margen: el rango y, al solicitar, las cantidades de materiales para el correo interno.
 
 const contactoSchema = z.object({
   nombre: z.string().trim().min(1).max(100),
@@ -105,7 +105,9 @@ export async function POST(req: Request) {
       select: { id: true },
     });
 
-    return NextResponse.json({ rango, proyectoId: project.id });
+    // Para el correo interno de cedanet.net: resumen y cantidades, sin precios
+    const materiales = estimacion.materiales.map((m) => ({ nombre: m.nombre, cantidad: m.cantidad, unidad: m.unidad }));
+    return NextResponse.json({ rango, proyectoId: project.id, resumen: def.resumen(entrada.data), materiales });
   } catch (error) {
     console.error('[estimador] Error:', error);
     return NextResponse.json({ error: 'Error interno' }, { status: 500 });
