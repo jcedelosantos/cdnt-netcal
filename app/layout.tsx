@@ -11,6 +11,10 @@ const dmSans = DM_Sans({ subsets: ['latin'], variable: '--font-sans' });
 const jakartaSans = Plus_Jakarta_Sans({ subsets: ['latin'], variable: '--font-display' });
 const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mono' });
 
+export const viewport = {
+  themeColor: '#0A7EA4',
+};
+
 export const metadata = {
   title: 'NetPlanner - Calculadora de Materiales para Redes',
   description: 'Aplicación profesional para cálculo automático de materiales en proyectos de redes, cableado estructurado y CCTV',
@@ -18,6 +22,12 @@ export const metadata = {
   icons: {
     icon: '/favicon.svg',
     shortcut: '/favicon.svg',
+    apple: '/apple-touch-icon.png',
+  },
+  appleWebApp: {
+    capable: true,
+    title: 'NetPlanner',
+    statusBarStyle: 'default',
   },
   openGraph: {
     images: ['/og-image.png'],
