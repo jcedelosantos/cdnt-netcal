@@ -110,6 +110,7 @@ export type EntradaWifi = z.infer<typeof entradaWifiSchema>;
 const COBERTURA_AP: Record<EntradaWifi['espacio'], number> = { abierto: 150, paredes: 90, nave: 300 };
 const CABLE_POR_AP: Record<EntradaWifi['espacio'], number> = { abierto: 25, paredes: 30, nave: 50 };
 const PERSONAS_POR_AP = 25;
+const APS_POR_SWITCH_8 = 6; // hasta 6 APs: switch de 8 puertos (APs, enlace y uno libre)
 const APS_POR_SWITCH_195W = 12; // más APs piden el switch de 370 W
 
 export function cantidadAps(entrada: EntradaWifi): number {
@@ -120,10 +121,14 @@ export function materialesWifi(entrada: EntradaWifi): MaterialItem[] {
   const aps = cantidadAps(entrada);
   const metros = aps * CABLE_POR_AP[entrada.espacio] * 1.15;
   const switches = Math.ceil((aps + 2) / PUERTOS_SWITCH);
+  const switchPoe =
+    aps <= APS_POR_SWITCH_8
+      ? und('Redes', 'Switch PoE 8 puertos', 1)
+      : und('Redes', aps > APS_POR_SWITCH_195W ? 'Switch PoE 24 puertos 370 W' : 'Switch PoE 24 puertos', switches);
   return [
     // En naves se usa el AP de mayor alcance y capacidad
     und('WiFi', entrada.espacio === 'nave' ? 'Access point alta capacidad Wi-Fi 6' : 'Access point Wi-Fi 6', aps),
-    und('Redes', aps > APS_POR_SWITCH_195W ? 'Switch PoE 24 puertos 370 W' : 'Switch PoE 24 puertos', switches),
+    switchPoe,
     und('Cableado', 'Cable UTP Cat6 (caja 305 m)', Math.ceil(metros / 305), 'caja'),
     und('Cableado', 'Jack Cat6', aps),
     und('Cableado', 'Patch cord Cat6 1 m', aps * 2),
@@ -133,7 +138,7 @@ export function materialesWifi(entrada: EntradaWifi): MaterialItem[] {
 
 export function configWifi(entrada: EntradaWifi): ConfigProyecto {
   const aps = cantidadAps(entrada);
-  const puertos = PUERTOS_SWITCH * Math.ceil((aps + 2) / PUERTOS_SWITCH);
+  const puertos = aps <= APS_POR_SWITCH_8 ? 8 : PUERTOS_SWITCH * Math.ceil((aps + 2) / PUERTOS_SWITCH);
   return {
     puntos: [{ tipo: 'access_point', cantidad: aps, distancia: CABLE_POR_AP[entrada.espacio] }],
     categoriaCable: 'Cat6',
@@ -213,6 +218,7 @@ const wifi: Definicion<EntradaWifi> = {
   nombreProyecto: (e) => `WiFi ${e.metros} m² (${cantidadAps(e)} APs)`,
   combinaciones: [
     { metros: 400, espacio: 'paredes', personas: '50' },
+    { metros: 1000, espacio: 'paredes', personas: '100' },
     { metros: 5000, espacio: 'nave', personas: '150' }, // más de 12 APs: switch de 370 W
   ],
   ejemplo: { entrada: { metros: 400, espacio: 'paredes', personas: '50' }, texto: '400 m², oficinas con paredes, hasta 50 personas' },
