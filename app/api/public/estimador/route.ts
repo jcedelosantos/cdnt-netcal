@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
-import { configCctv, entradaCctvSchema, estimarCctv, verificarFirma } from '@/lib/estimador';
+import { DEFINICIONES, areaSchema, estimar, verificarFirma } from '@/lib/estimador';
 
 // Llamado solo desde el servidor de cedanet.net, firmado con ESTIMADOR_SECRET.
 // No devuelve costos, margen ni desglose: solo el rango de precio.
@@ -17,15 +17,12 @@ const contactoSchema = z.object({
   mensaje: z.string().trim().max(2000).optional().default(''),
 });
 
+// Sin "area" se asume CCTV (llamadas anteriores a la central telefónica)
+const base = { area: areaSchema.default('cctv'), entrada: z.unknown() };
 const cuerpoSchema = z.discriminatedUnion('accion', [
-  z.object({ accion: z.literal('estimar'), entrada: entradaCctvSchema }),
-  z.object({ accion: z.literal('solicitar'), entrada: entradaCctvSchema, contacto: contactoSchema }),
+  z.object({ accion: z.literal('estimar'), ...base }),
+  z.object({ accion: z.literal('solicitar'), ...base, contacto: contactoSchema }),
 ]);
-
-const ETIQUETA = {
-  distancia: { corta: 'menos de 20 m', media: '20 a 50 m', larga: 'más de 50 m' },
-  instalacion: { interior: 'interior', exterior: 'exterior', mixta: 'interior y exterior' },
-} as const;
 
 export async function POST(req: Request) {
   const texto = await req.text();
@@ -42,9 +39,12 @@ export async function POST(req: Request) {
   const parsed = cuerpoSchema.safeParse(json);
   if (!parsed.success) return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 });
   const cuerpo = parsed.data;
+  const def = DEFINICIONES[cuerpo.area];
+  const entrada = def.schema.safeParse(cuerpo.entrada);
+  if (!entrada.success) return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 });
 
   try {
-    const estimacion = await estimarCctv(cuerpo.entrada);
+    const estimacion = await estimar(cuerpo.area, entrada.data);
     if (!estimacion) return NextResponse.json({ error: 'El estimador no está activo' }, { status: 503 });
     if (estimacion.sinPrecio.length > 0) {
       console.warn('[estimador] Materiales sin precio de referencia:', estimacion.sinPrecio.join(', '));
@@ -53,14 +53,14 @@ export async function POST(req: Request) {
 
     if (cuerpo.accion === 'estimar') return NextResponse.json({ rango });
 
-    const { entrada, contacto } = cuerpo;
-    const cfg = configCctv(entrada);
+    const { contacto } = cuerpo;
+    const cfg = def.config(entrada.data);
     const notas = [
       'Solicitud desde el estimador de cedanet.net',
       `Contacto: ${contacto.nombre}${contacto.empresa ? ` (${contacto.empresa})` : ''}`,
       `Teléfono: ${contacto.telefono}`,
       contacto.email ? `Email: ${contacto.email}` : null,
-      `CCTV: ${entrada.camaras} cámaras, distancia ${ETIQUETA.distancia[entrada.distancia]}, instalación ${ETIQUETA.instalacion[entrada.instalacion]}`,
+      def.resumen(entrada.data),
       `Rango mostrado: RD$ ${rango.minimo.toLocaleString('es-DO')} – ${rango.maximo.toLocaleString('es-DO')}`,
       contacto.mensaje ? `Mensaje: ${contacto.mensaje}` : null,
       estimacion.sinPrecio.length ? `Materiales sin precio de referencia: ${estimacion.sinPrecio.join(', ')}` : null,
@@ -71,7 +71,7 @@ export async function POST(req: Request) {
       data: {
         userId: estimacion.userId,
         origen: 'web',
-        nombre: `CCTV ${entrada.camaras} cámaras – ${contacto.empresa || contacto.nombre}`,
+        nombre: `${def.nombreProyecto(entrada.data)} – ${contacto.empresa || contacto.nombre}`,
         cliente: contacto.empresa || contacto.nombre,
         ubicacion: contacto.ubicacion || null,
         tipoInstalacion: cfg.tipoInstalacion,

@@ -32,7 +32,7 @@ model User {
   sessions          Session[]
   projects          Project[]
   preciosReferencia PrecioReferencia[]
-  estimadorConfig   EstimadorConfig?
+  estimadorConfigs  EstimadorConfig[]
 }
 
 model Account {
@@ -663,17 +663,20 @@ model PrecioReferencia {
 // Configuración del estimador público. Sus proyectos se crean a nombre de userId.
 model EstimadorConfig {
   id                String   @id @default(cuid())
-  userId            String   @unique
+  userId            String
   user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  area              String   @default("cctv") // "cctv" | "telefonia"
   activo            Boolean  @default(false)
   margen            Float    @default(40) // % sobre el precio de referencia
   rangoPct          Float    @default(15) // ancho del rango mostrado (+/-)
-  manoObraPorCamara Float    @default(0)
+  manoObraPorCamara Float    @default(0) // por unidad: cámara en CCTV, extensión en telefonía
   costoFijo         Float    @default(0) // configuración, transporte, etc.
   itbis             Float    @default(18)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
   materiales        EstimadorMaterial[]
+
+  @@unique([userId, area])
 }
 
 // Qué precio de referencia usa cada material del motor de cálculo

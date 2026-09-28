@@ -5,20 +5,20 @@ import { getServerSession } from 'next-auth';
 import { z } from 'zod';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
-import { estimarCctv, nombresMaterialesCctv } from '@/lib/estimador';
+import { DEFINICIONES, areaSchema, estimar, nombresMateriales, type Area } from '@/lib/estimador';
 
 async function usuarioActual() {
   const session = await getServerSession(authOptions);
   return (session?.user as any)?.id as string | undefined;
 }
 
-async function cargar(userId: string) {
+async function cargar(userId: string, area: Area) {
   const config =
-    (await prisma.estimadorConfig.findUnique({ where: { userId }, include: { materiales: true } })) ??
-    (await prisma.estimadorConfig.create({ data: { userId }, include: { materiales: true } }));
+    (await prisma.estimadorConfig.findUnique({ where: { userId_area: { userId, area } }, include: { materiales: true } })) ??
+    (await prisma.estimadorConfig.create({ data: { userId, area }, include: { materiales: true } }));
 
   const mapa = new Map(config.materiales.map((m) => [m.materialNombre, m]));
-  const materiales = nombresMaterialesCctv().map((nombre) => ({
+  const materiales = nombresMateriales(area).map((nombre) => ({
     materialNombre: nombre,
     referenciaNombre: mapa.get(nombre)?.referenciaNombre ?? null,
     incluir: mapa.get(nombre)?.incluir ?? true,
@@ -38,8 +38,8 @@ async function cargar(userId: string) {
     select: { id: true, nombre: true, cliente: true, createdAt: true, aprobado: true },
   });
 
-  // Ejemplo de referencia: 8 cámaras, distancia media, interior
-  const ejemplo = await estimarCctv({ camaras: 8, distancia: 'media', instalacion: 'interior' }, { soloActivo: false });
+  const { ejemplo: muestra } = DEFINICIONES[area];
+  const ejemplo = await estimar(area, muestra.entrada, { soloActivo: false });
 
   const { materiales: _m, ...resto } = config;
   return {
@@ -48,6 +48,7 @@ async function cargar(userId: string) {
     referencias,
     solicitudes,
     ejemplo: ejemplo && {
+      texto: muestra.texto,
       minimo: ejemplo.minimo,
       maximo: ejemplo.maximo,
       total: ejemplo.total,
@@ -57,14 +58,17 @@ async function cargar(userId: string) {
   };
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   const userId = await usuarioActual();
   if (!userId) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-  return NextResponse.json(await cargar(userId));
+  const area = areaSchema.safeParse(new URL(req.url).searchParams.get('area') ?? 'cctv');
+  if (!area.success) return NextResponse.json({ error: 'Área inválida' }, { status: 400 });
+  return NextResponse.json(await cargar(userId, area.data));
 }
 
 const numero = z.coerce.number().min(0).max(10_000_000);
 const putSchema = z.object({
+  area: areaSchema,
   activo: z.boolean(),
   margen: numero,
   rangoPct: z.coerce.number().min(0).max(50),
@@ -85,15 +89,15 @@ export async function PUT(req: Request) {
   if (!userId) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   const parsed = putSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 });
-  const { materiales, ...campos } = parsed.data;
+  const { materiales, area, ...campos } = parsed.data;
 
-  // Solo puede haber un estimador activo
+  // Solo puede haber un estimador activo por área
   if (campos.activo) {
-    await prisma.estimadorConfig.updateMany({ where: { userId: { not: userId } }, data: { activo: false } });
+    await prisma.estimadorConfig.updateMany({ where: { area, userId: { not: userId } }, data: { activo: false } });
   }
   const config = await prisma.estimadorConfig.upsert({
-    where: { userId },
-    create: { userId, ...campos },
+    where: { userId_area: { userId, area } },
+    create: { userId, area, ...campos },
     update: campos,
   });
   await prisma.$transaction(
@@ -105,5 +109,5 @@ export async function PUT(req: Request) {
       })
     )
   );
-  return NextResponse.json(await cargar(userId));
+  return NextResponse.json(await cargar(userId, area));
 }

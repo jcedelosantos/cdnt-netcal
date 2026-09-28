@@ -17,11 +17,18 @@ type Config = {
 type Material = { materialNombre: string; referenciaNombre: string | null; incluir: boolean };
 type Referencia = { nombre: string; precio: number; fecha: string };
 type Solicitud = { id: string; nombre: string; cliente: string | null; createdAt: string; aprobado: boolean };
-type Ejemplo = { minimo: number; maximo: number; total: number; costoMateriales: number; sinPrecio: string[] } | null;
+type Ejemplo = { texto: string; minimo: number; maximo: number; total: number; costoMateriales: number; sinPrecio: string[] } | null;
+
+type Area = 'cctv' | 'telefonia';
+const AREAS: { id: Area; titulo: string; unidad: string; fijo: string }[] = [
+  { id: 'cctv', titulo: 'CCTV', unidad: 'cámara', fijo: 'Transporte, configuración del NVR, etc.' },
+  { id: 'telefonia', titulo: 'Central telefónica', unidad: 'extensión', fijo: 'Configuración de la central, transporte, etc.' },
+];
 
 const dop = (n: number) => `RD$ ${n.toLocaleString('es-DO', { maximumFractionDigits: 0 })}`;
 
 export default function EstimadorWebClient() {
+  const [area, setArea] = useState<Area>('cctv');
   const [config, setConfig] = useState<Config | null>(null);
   const [materiales, setMateriales] = useState<Material[]>([]);
   const [referencias, setReferencias] = useState<Referencia[]>([]);
@@ -38,11 +45,14 @@ export default function EstimadorWebClient() {
   };
 
   useEffect(() => {
-    fetch('/api/estimador-config')
+    setConfig(null);
+    fetch(`/api/estimador-config?area=${area}`)
       .then((r) => r.json())
       .then(aplicar)
       .catch(() => toast.error('Error al cargar el estimador'));
-  }, []);
+  }, [area]);
+
+  const info = AREAS.find((a) => a.id === area)!;
 
   const precioPorNombre = useMemo(
     () => new Map(referencias.map((r) => [r.nombre.toLowerCase(), r.precio])),
@@ -60,7 +70,7 @@ export default function EstimadorWebClient() {
       const res = await fetch('/api/estimador-config', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...config, materiales }),
+        body: JSON.stringify({ ...config, area, materiales }),
       });
       const data = await res.json();
       if (!res.ok) { toast.error(data.error ?? 'Error al guardar'); return; }
@@ -94,7 +104,7 @@ export default function EstimadorWebClient() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Globe className="w-6 h-6 text-primary" /> Estimador web (CCTV)
+            <Globe className="w-6 h-6 text-primary" /> Estimador web
           </h1>
           <p className="text-sm text-muted-foreground">
             Tarifa que usa el estimador de cedanet.net. Los clientes solo ven el rango final, nunca estos valores.
@@ -105,8 +115,16 @@ export default function EstimadorWebClient() {
         </Button>
       </div>
 
+      <div className="flex flex-wrap gap-2" role="tablist" aria-label="Área del estimador">
+        {AREAS.map((a) => (
+          <Button key={a.id} role="tab" aria-selected={area === a.id} variant={area === a.id ? 'default' : 'outline'} size="sm" onClick={() => setArea(a.id)}>
+            {a.titulo}
+          </Button>
+        ))}
+      </div>
+
       <Card>
-        <CardHeader><CardTitle className="text-base">General</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base">General · {info.titulo}</CardTitle></CardHeader>
         <CardContent className="space-y-5">
           <div className="flex items-center gap-3">
             <Switch id="activo" checked={config.activo} onCheckedChange={(v) => setConfig({ ...config, activo: v })} />
@@ -116,12 +134,12 @@ export default function EstimadorWebClient() {
             {campo('margen', 'Margen sobre precio de referencia (%)')}
             {campo('rangoPct', 'Ancho del rango mostrado (± %)')}
             {campo('itbis', 'ITBIS (%)')}
-            {campo('manoObraPorCamara', 'Mano de obra por cámara (RD$)', 'Instalación y configuración de cada cámara.')}
-            {campo('costoFijo', 'Costo fijo por proyecto (RD$)', 'Transporte, configuración del NVR, etc.')}
+            {campo('manoObraPorCamara', `Mano de obra por ${info.unidad} (RD$)`, `Instalación y configuración de cada ${info.unidad}.`)}
+            {campo('costoFijo', 'Costo fijo por proyecto (RD$)', info.fijo)}
           </div>
           {ejemplo && (
             <div className="rounded-lg bg-muted p-4 text-sm">
-              <p className="font-medium">Ejemplo: 8 cámaras, distancia media, interior (con lo guardado)</p>
+              <p className="font-medium">Ejemplo: {ejemplo.texto} (con lo guardado)</p>
               <p className="mt-1">
                 El cliente vería <strong>{dop(ejemplo.minimo)} – {dop(ejemplo.maximo)}</strong>
                 {' '}· total calculado {dop(ejemplo.total)} · materiales al costo {dop(ejemplo.costoMateriales)}
