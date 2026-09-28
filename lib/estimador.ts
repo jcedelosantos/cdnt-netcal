@@ -35,6 +35,22 @@ export function configCctv(entrada: EntradaCctv): ConfigProyecto {
   };
 }
 
+// Jacks y patch cords: el doble de los equipos (un extremo en el equipo y otro en el patch panel) más 10%
+const dobleMas10 = (equipos: number) => Math.ceil((equipos * 22) / 10);
+
+// Materiales del motor de cálculo, con jacks y patch cords al doble de las cámaras más 10%
+// (los proyectos internos siguen usando las cantidades de lib/calculations.ts)
+export function materialesCctv(entrada: EntradaCctv): MaterialItem[] {
+  const cantidad: Record<string, number> = {
+    'Jack RJ45 Cat6': dobleMas10(entrada.camaras),
+    'Patch Cord 0.6m (gabinete)': Math.ceil((entrada.camaras * 11) / 10),
+    'Patch Cord 3m (dispositivo final)': Math.ceil((entrada.camaras * 11) / 10),
+  };
+  return calcularMateriales(configCctv(entrada)).materiales.map((m) =>
+    m.nombre in cantidad ? { ...m, cantidad: cantidad[m.nombre] } : m
+  );
+}
+
 // =================== CENTRAL TELEFÓNICA ===================
 // Basado en la cotización de central IP de Reverse: central UCM, teléfonos IP, cableado y switch PoE.
 
@@ -65,8 +81,8 @@ export function materialesTelefonia(entrada: EntradaTelefonia): MaterialItem[] {
     const metros = n * METROS_POR_EXTENSION[entrada.cableado] * 1.15;
     materiales.push(
       und('Cableado', 'Cable UTP Cat6 (caja 305 m)', Math.ceil(metros / 305), 'caja'),
-      und('Cableado', 'Jack Cat6', n),
-      und('Cableado', 'Patch cord Cat6 1 m', n * 2),
+      und('Cableado', 'Jack Cat6', dobleMas10(n)),
+      und('Cableado', 'Patch cord Cat6 1 m', dobleMas10(n)),
       und('Cableado', 'Patch panel 24 puertos', Math.ceil(n / PUERTOS_SWITCH)),
     );
   }
@@ -130,8 +146,8 @@ export function materialesWifi(entrada: EntradaWifi): MaterialItem[] {
     und('WiFi', entrada.espacio === 'nave' ? 'Access point alta capacidad Wi-Fi 6' : 'Access point Wi-Fi 6', aps),
     switchPoe,
     und('Cableado', 'Cable UTP Cat6 (caja 305 m)', Math.ceil(metros / 305), 'caja'),
-    und('Cableado', 'Jack Cat6', aps),
-    und('Cableado', 'Patch cord Cat6 1 m', aps * 2),
+    und('Cableado', 'Jack Cat6', dobleMas10(aps)),
+    und('Cableado', 'Patch cord Cat6 1 m', dobleMas10(aps)),
     und('Cableado', 'Patch panel 24 puertos', Math.ceil(aps / PUERTOS_SWITCH)),
   ];
 }
@@ -185,7 +201,7 @@ type Definicion<E> = {
 
 const cctv: Definicion<EntradaCctv> = {
   schema: entradaCctvSchema,
-  materiales: (e) => calcularMateriales(configCctv(e)).materiales,
+  materiales: materialesCctv,
   unidades: (e) => e.camaras,
   config: configCctv,
   resumen: (e) => `CCTV: ${e.camaras} cámaras, distancia ${ETIQUETA_CCTV.distancia[e.distancia]}, instalación ${ETIQUETA_CCTV.instalacion[e.instalacion]}`,
