@@ -1,4 +1,4 @@
-// Estimador público de cedanet.net (CCTV y central telefónica).
+// Estimador público de cedanet.net (CCTV, central telefónica y WiFi).
 // Cada área tiene su propia tarifa en /estimador-web; los precios salen de "Precios de referencia".
 import crypto from 'crypto';
 import { z } from 'zod';
@@ -96,6 +96,61 @@ export function configTelefonia(entrada: EntradaTelefonia): ConfigProyecto {
   };
 }
 
+// =================== WIFI EMPRESARIAL ===================
+// Access points Aruba Instant On, switch PoE y un cable por AP.
+
+export const entradaWifiSchema = z.object({
+  metros: z.number().int().min(50).max(5000), // área a cubrir en m²
+  espacio: z.enum(['abierto', 'paredes', 'nave']),
+  personas: z.enum(['20', '50', '100', '150']), // conectadas a la vez (150 = más de 100)
+});
+export type EntradaWifi = z.infer<typeof entradaWifiSchema>;
+
+// m² que cubre un AP y metros de cable por AP según el tipo de espacio
+const COBERTURA_AP: Record<EntradaWifi['espacio'], number> = { abierto: 150, paredes: 90, nave: 300 };
+const CABLE_POR_AP: Record<EntradaWifi['espacio'], number> = { abierto: 25, paredes: 30, nave: 50 };
+const PERSONAS_POR_AP = 25;
+const APS_POR_SWITCH_195W = 12; // más APs piden el switch de 370 W
+
+export function cantidadAps(entrada: EntradaWifi): number {
+  return Math.max(Math.ceil(entrada.metros / COBERTURA_AP[entrada.espacio]), Math.ceil(Number(entrada.personas) / PERSONAS_POR_AP));
+}
+
+export function materialesWifi(entrada: EntradaWifi): MaterialItem[] {
+  const aps = cantidadAps(entrada);
+  const metros = aps * CABLE_POR_AP[entrada.espacio] * 1.15;
+  const switches = Math.ceil((aps + 2) / PUERTOS_SWITCH);
+  return [
+    // En naves se usa el AP de mayor alcance y capacidad
+    und('WiFi', entrada.espacio === 'nave' ? 'Access point alta capacidad Wi-Fi 6' : 'Access point Wi-Fi 6', aps),
+    und('Redes', aps > APS_POR_SWITCH_195W ? 'Switch PoE 24 puertos 370 W' : 'Switch PoE 24 puertos', switches),
+    und('Cableado', 'Cable UTP Cat6 (caja 305 m)', Math.ceil(metros / 305), 'caja'),
+    und('Cableado', 'Jack Cat6', aps),
+    und('Cableado', 'Patch cord Cat6 1 m', aps * 2),
+    und('Cableado', 'Patch panel 24 puertos', Math.ceil(aps / PUERTOS_SWITCH)),
+  ];
+}
+
+export function configWifi(entrada: EntradaWifi): ConfigProyecto {
+  const aps = cantidadAps(entrada);
+  const puertos = PUERTOS_SWITCH * Math.ceil((aps + 2) / PUERTOS_SWITCH);
+  return {
+    puntos: [{ tipo: 'access_point', cantidad: aps, distancia: CABLE_POR_AP[entrada.espacio] }],
+    categoriaCable: 'Cat6',
+    tipoInstalacion: 'expuesta',
+    tipoCanalizacion: entrada.espacio === 'nave' ? 'EMT' : 'canaleta',
+    reservaCable: 15,
+    reservaMateriales: 10,
+    switchPuertos: puertos,
+    switchPoE: true,
+    switchPuertosPoE: puertos,
+    gabineteRU: 6,
+    incluyeUPS: false,
+    distanciaPromedio: CABLE_POR_AP[entrada.espacio],
+    modoAvanzado: false,
+  };
+}
+
 // =================== ÁREAS ===================
 
 const ETIQUETA_CCTV = {
@@ -105,6 +160,11 @@ const ETIQUETA_CCTV = {
 const ETIQUETA_TELEFONIA = {
   cableado: { existente: 'usa la red existente', corta: 'cableado nuevo, distancias cortas', larga: 'cableado nuevo, distancias largas' },
   poe: { si: 'ya tiene switch PoE', no: 'sin switch PoE' },
+} as const;
+
+const ETIQUETA_WIFI = {
+  espacio: { abierto: 'espacio abierto', paredes: 'oficinas con paredes', nave: 'nave o almacén' },
+  personas: { '20': 'hasta 20 personas', '50': 'hasta 50 personas', '100': 'hasta 100 personas', '150': 'más de 100 personas' },
 } as const;
 
 type Definicion<E> = {
@@ -144,10 +204,24 @@ const telefonia: Definicion<EntradaTelefonia> = {
   ejemplo: { entrada: { extensiones: 10, cableado: 'corta', poe: 'no' }, texto: '10 extensiones, cableado nuevo corto, sin switch PoE' },
 };
 
-export const AREAS = ['cctv', 'telefonia'] as const;
+const wifi: Definicion<EntradaWifi> = {
+  schema: entradaWifiSchema,
+  materiales: materialesWifi,
+  unidades: cantidadAps,
+  config: configWifi,
+  resumen: (e) => `WiFi: ${e.metros} m², ${ETIQUETA_WIFI.espacio[e.espacio]}, ${ETIQUETA_WIFI.personas[e.personas]} (${cantidadAps(e)} ${cantidadAps(e) === 1 ? 'access point' : 'access points'})`,
+  nombreProyecto: (e) => `WiFi ${e.metros} m² (${cantidadAps(e)} APs)`,
+  combinaciones: [
+    { metros: 400, espacio: 'paredes', personas: '50' },
+    { metros: 5000, espacio: 'nave', personas: '150' }, // más de 12 APs: switch de 370 W
+  ],
+  ejemplo: { entrada: { metros: 400, espacio: 'paredes', personas: '50' }, texto: '400 m², oficinas con paredes, hasta 50 personas' },
+};
+
+export const AREAS = ['cctv', 'telefonia', 'wifi'] as const;
 export type Area = (typeof AREAS)[number];
 export const areaSchema = z.enum(AREAS);
-export const DEFINICIONES: Record<Area, Definicion<any>> = { cctv, telefonia };
+export const DEFINICIONES: Record<Area, Definicion<any>> = { cctv, telefonia, wifi };
 
 // Todos los nombres de material que puede generar un área (para configurar la tarifa)
 export function nombresMateriales(area: Area): string[] {
