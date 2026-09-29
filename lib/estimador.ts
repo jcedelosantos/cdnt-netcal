@@ -198,7 +198,7 @@ export function materialesFirewall(entrada: EntradaFirewall): MaterialItem[] {
     // Incluye la licencia UTP de 12 meses
     materiales.push(und('Firewall', 'FortiGate mediano con licencia UTP 1 año', 1));
   }
-  materiales.push(und('Servicios', 'Configuración de firewall básica', 1));
+  materiales.push(und('Servicios', 'Instalación de firewall', 1), und('Servicios', 'Configuración de firewall básica', 1));
   if (entrada.configuracion === 'avanzada') materiales.push(und('Servicios', 'Configuración de firewall avanzada (VPN y políticas)', 1));
   return materiales;
 }
