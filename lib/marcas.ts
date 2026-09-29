@@ -4,12 +4,13 @@
 
 export type ReferenciaMarca = { nombre: string; categoria: string | null; precio: number };
 
-type Tipo = 'Switch' | 'Cámara' | 'NVR/DVR' | 'Access point' | 'Central telefónica' | 'Teléfono IP' | 'Router/Gateway';
+type Tipo = 'Firewall' | 'Switch' | 'Cámara' | 'NVR/DVR' | 'Access point' | 'Central telefónica' | 'Teléfono IP' | 'Router/Gateway';
 
 // Tipo de equipo según el nombre (materiales del cálculo o precios sin categoría)
 function tipoPorNombre(nombre: string): Tipo | null {
   const n = nombre.toLowerCase();
-  if (/soporte|disco|m[oó]dulo|base dect|antena/.test(n)) return null;
+  if (/soporte|disco|m[oó]dulo|base dect|antena|configuraci|servicio/.test(n)) return null;
+  if (/firewall|fortigate|licencia/.test(n)) return /licencia/.test(n) ? null : 'Firewall';
   if (/switch/.test(n)) return 'Switch';
   if (/\bnvr\b|\bdvr\b|grabador|video recorder/.test(n)) return 'NVR/DVR';
   if (/c[aá]mara|camera/.test(n)) return 'Cámara';
@@ -20,7 +21,7 @@ function tipoPorNombre(nombre: string): Tipo | null {
   return null;
 }
 
-const TIPOS: Tipo[] = ['Switch', 'Cámara', 'NVR/DVR', 'Access point', 'Central telefónica', 'Teléfono IP', 'Router/Gateway'];
+const TIPOS: Tipo[] = ['Firewall', 'Switch', 'Cámara', 'NVR/DVR', 'Access point', 'Central telefónica', 'Teléfono IP', 'Router/Gateway'];
 
 function tipoReferencia(ref: ReferenciaMarca): Tipo | null {
   if (ref.categoria && (TIPOS as string[]).includes(ref.categoria)) return ref.categoria as Tipo;

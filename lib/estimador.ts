@@ -1,4 +1,4 @@
-// Estimador público de cedanet.net (CCTV, central telefónica y WiFi).
+// Estimador público de cedanet.net (CCTV, central telefónica, WiFi y firewall).
 // Cada área tiene su propia tarifa en /estimador-web; los precios salen de "Precios de referencia".
 import crypto from 'crypto';
 import { z } from 'zod';
@@ -178,6 +178,49 @@ export function configWifi(entrada: EntradaWifi): ConfigProyecto {
   };
 }
 
+// =================== FIREWALL ===================
+// Fortinet (con licencia de seguridad UTP de 1 año) o Aruba Instant On (gateway básico), más la configuración.
+
+export const entradaFirewallSchema = z.object({
+  marca: z.enum(['fortinet', 'aruba']),
+  usuarios: z.enum(['25', '75', '150']), // hasta 25, 26 a 75, más de 75
+  configuracion: z.enum(['basica', 'avanzada']),
+});
+export type EntradaFirewall = z.infer<typeof entradaFirewallSchema>;
+
+export function materialesFirewall(entrada: EntradaFirewall): MaterialItem[] {
+  const materiales: MaterialItem[] = [];
+  if (entrada.marca === 'aruba') {
+    materiales.push(und('Firewall', 'Gateway Aruba Instant On', 1));
+  } else if (entrada.usuarios === '25') {
+    materiales.push(und('Firewall', 'FortiGate pequeño (hasta 25 usuarios)', 1), und('Firewall', 'Licencia UTP 1 año FortiGate pequeño', 1));
+  } else {
+    // Incluye la licencia UTP de 12 meses
+    materiales.push(und('Firewall', 'FortiGate mediano con licencia UTP 1 año', 1));
+  }
+  materiales.push(und('Servicios', 'Configuración de firewall básica', 1));
+  if (entrada.configuracion === 'avanzada') materiales.push(und('Servicios', 'Configuración de firewall avanzada (VPN y políticas)', 1));
+  return materiales;
+}
+
+export function configFirewall(): ConfigProyecto {
+  return {
+    puntos: [],
+    categoriaCable: 'Cat6',
+    tipoInstalacion: 'expuesta',
+    tipoCanalizacion: 'canaleta',
+    reservaCable: 15,
+    reservaMateriales: 10,
+    switchPuertos: 8,
+    switchPoE: false,
+    switchPuertosPoE: 0,
+    gabineteRU: 6,
+    incluyeUPS: false,
+    distanciaPromedio: 5,
+    modoAvanzado: false,
+  };
+}
+
 // =================== ÁREAS ===================
 
 const ETIQUETA_CCTV = {
@@ -192,6 +235,12 @@ const ETIQUETA_TELEFONIA = {
 const ETIQUETA_WIFI = {
   espacio: { abierto: 'espacio abierto', paredes: 'oficinas con paredes', nave: 'nave o almacén' },
   personas: { '20': 'hasta 20 personas', '50': 'hasta 50 personas', '100': 'hasta 100 personas', '150': 'más de 100 personas' },
+} as const;
+
+const ETIQUETA_FIREWALL = {
+  marca: { fortinet: 'Fortinet', aruba: 'Aruba Instant On' },
+  usuarios: { '25': 'hasta 25 usuarios', '75': '26 a 75 usuarios', '150': 'más de 75 usuarios' },
+  configuracion: { basica: 'configuración básica', avanzada: 'configuración avanzada (VPN y políticas)' },
 } as const;
 
 type Definicion<E> = {
@@ -249,10 +298,25 @@ const wifi: Definicion<EntradaWifi> = {
   ejemplo: { entrada: { metros: 400, espacio: 'paredes', personas: '50' }, texto: '400 m², oficinas con paredes, hasta 50 personas' },
 };
 
-export const AREAS = ['cctv', 'telefonia', 'wifi'] as const;
+const firewall: Definicion<EntradaFirewall> = {
+  schema: entradaFirewallSchema,
+  materiales: materialesFirewall,
+  unidades: () => 1, // un equipo por proyecto
+  config: configFirewall,
+  resumen: (e) => `Firewall: ${ETIQUETA_FIREWALL.marca[e.marca]}, ${ETIQUETA_FIREWALL.usuarios[e.usuarios]}, ${ETIQUETA_FIREWALL.configuracion[e.configuracion]}`,
+  nombreProyecto: (e) => `Firewall ${ETIQUETA_FIREWALL.marca[e.marca]}`,
+  combinaciones: [
+    { marca: 'fortinet', usuarios: '25', configuracion: 'avanzada' },
+    { marca: 'fortinet', usuarios: '75', configuracion: 'basica' },
+    { marca: 'aruba', usuarios: '25', configuracion: 'basica' },
+  ],
+  ejemplo: { entrada: { marca: 'fortinet', usuarios: '25', configuracion: 'basica' }, texto: 'Fortinet, hasta 25 usuarios, configuración básica' },
+};
+
+export const AREAS = ['cctv', 'telefonia', 'wifi', 'firewall'] as const;
 export type Area = (typeof AREAS)[number];
 export const areaSchema = z.enum(AREAS);
-export const DEFINICIONES: Record<Area, Definicion<any>> = { cctv, telefonia, wifi };
+export const DEFINICIONES: Record<Area, Definicion<any>> = { cctv, telefonia, wifi, firewall };
 
 // Todos los nombres de material que puede generar un área (para configurar la tarifa)
 export function nombresMateriales(area: Area): string[] {

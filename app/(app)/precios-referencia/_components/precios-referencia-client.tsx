@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { FadeIn } from '@/components/ui/animate';
 import { Tags, Plus, Search, Pencil, Trash2, X, Save, CalendarDays, Building2 } from 'lucide-react';
 
-const CATEGORIAS = ['Cable', 'Cableado', 'Cámara', 'Switch', 'NVR/DVR', 'Access point', 'Teléfono IP', 'Central telefónica', 'Router/Gateway', 'Disco', 'UPS', 'Rack/Gabinete', 'Accesorio', 'Mano de obra', 'Otro'];
+const CATEGORIAS = ['Cable', 'Cableado', 'Cámara', 'Switch', 'NVR/DVR', 'Access point', 'Teléfono IP', 'Central telefónica', 'Router/Gateway', 'Firewall', 'Licencia', 'Servicio', 'Disco', 'UPS', 'Rack/Gabinete', 'Accesorio', 'Mano de obra', 'Otro'];
 const FUENTES = ['cotizacion', 'factura'];
 
 type Precio = {
