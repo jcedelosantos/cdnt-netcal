@@ -86,15 +86,21 @@ export function materialesTelefonia(entrada: EntradaTelefonia): MaterialItem[] {
       und('Cableado', 'Patch panel 24 puertos', Math.ceil(n / PUERTOS_SWITCH)),
     );
   }
-  // Puertos para los teléfonos, la central y el enlace a la red
-  if (entrada.poe === 'no') materiales.push(und('Redes', 'Switch PoE 24 puertos', Math.ceil((n + 2) / PUERTOS_SWITCH)));
+  // Puertos para los teléfonos, la central y el enlace a la red; hasta 6 extensiones cabe en uno de 8
+  if (entrada.poe === 'no') {
+    materiales.push(
+      n + 2 <= 8
+        ? und('Redes', 'Switch PoE 8 puertos', 1)
+        : und('Redes', 'Switch PoE 24 puertos', Math.ceil((n + 2) / PUERTOS_SWITCH))
+    );
+  }
   return materiales;
 }
 
 // Configuración del borrador que se crea en NetPlanner cuando el cliente solicita
 export function configTelefonia(entrada: EntradaTelefonia): ConfigProyecto {
   const distancia = entrada.cableado === 'existente' ? 20 : METROS_POR_EXTENSION[entrada.cableado];
-  const puertos = PUERTOS_SWITCH * Math.ceil((entrada.extensiones + 2) / PUERTOS_SWITCH);
+  const puertos = entrada.extensiones + 2 <= 8 ? 8 : PUERTOS_SWITCH * Math.ceil((entrada.extensiones + 2) / PUERTOS_SWITCH);
   return {
     puntos: [{ tipo: 'telefono_ip', cantidad: entrada.extensiones, distancia }],
     categoriaCable: 'Cat6',
@@ -221,7 +227,10 @@ const telefonia: Definicion<EntradaTelefonia> = {
   config: configTelefonia,
   resumen: (e) => `Central telefónica: ${e.extensiones} extensiones, ${ETIQUETA_TELEFONIA.cableado[e.cableado]}, ${ETIQUETA_TELEFONIA.poe[e.poe]}`,
   nombreProyecto: (e) => `Central telefónica ${e.extensiones} extensiones`,
-  combinaciones: [{ extensiones: 12, cableado: 'corta', poe: 'no' }],
+  combinaciones: [
+    { extensiones: 12, cableado: 'corta', poe: 'no' },
+    { extensiones: 4, cableado: 'corta', poe: 'no' },
+  ],
   ejemplo: { entrada: { extensiones: 10, cableado: 'corta', poe: 'no' }, texto: '10 extensiones, cableado nuevo corto, sin switch PoE' },
 };
 

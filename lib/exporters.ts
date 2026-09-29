@@ -212,7 +212,6 @@ export async function exportarPDF(data: ExportData) {
   if (data.project.clienteRNC) { doc.text(`RNC: ${data.project.clienteRNC}`, mX, y); y += 12; }
   if (data.project.ubicacion) { doc.text(data.project.ubicacion, mX, y); y += 12; }
   if (data.project.categoriaCable) { doc.text(`Categoría cable: ${data.project.categoriaCable}`, mX, y); y += 12; }
-  if (data.project.marca) { doc.text(`Marca de equipos: ${data.project.marca}`, mX, y); y += 12; }
 
   // Número de cotización / factura + fecha (columna derecha)
   const facNum = data.project.numeroFactura;
@@ -240,6 +239,7 @@ export async function exportarPDF(data: ExportData) {
   labelVal('Cotización #', cotNum);
   if (facNum) labelVal('Factura #', facNum);
   labelVal('Fecha', fechaStr);
+  if (data.project.marca) labelVal('Marca de equipos', data.project.marca);
   if (!facNum && (data.validezCotizacion ?? 0) > 0) {
     const validHasta = new Date(quoteDate);
     validHasta.setDate(validHasta.getDate() + (data.validezCotizacion ?? 30));
