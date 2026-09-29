@@ -13,7 +13,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     const userId = (session?.user as any)?.id;
 
     const body = await req.json();
-    const { nombre, categoria, suplidor, precio, unidad, fuente, fecha, notas } = body;
+    const { nombre, categoria, suplidor, marca, precio, unidad, fuente, fecha, notas } = body;
 
     const existing = await withRetry(() => prisma.precioReferencia.findFirst({ where: { id: params.id, userId } }));
     if (!existing) return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
@@ -25,6 +25,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
           nombre: nombre?.trim() ?? existing.nombre,
           categoria: categoria?.trim() || null,
           suplidor: suplidor?.trim() || null,
+          marca: marca?.trim() || null,
           precio: precio !== undefined ? Number(precio) : existing.precio,
           unidad: unidad || existing.unidad,
           fuente: fuente || null,

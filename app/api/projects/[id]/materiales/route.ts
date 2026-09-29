@@ -39,9 +39,12 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     if (cotizacion && typeof cotizacion === 'object') {
       const cotData: any = {};
       const cotFields = ['incluyeCotizacion', 'margenGanancia', 'costoManoObra',
-        'costoTransporte', 'costoConfiguracion', 'costoCertificacion', 'itbis', 'moneda'];
+        'costoTransporte', 'costoConfiguracion', 'costoCertificacion', 'itbis', 'moneda', 'marca'];
       for (const f of cotFields) {
         if (cotizacion[f] !== undefined) cotData[f] = cotizacion[f];
+      }
+      if (cotData.marca !== undefined) {
+        cotData.marca = typeof cotData.marca === 'string' && cotData.marca.trim() ? cotData.marca.trim() : null;
       }
       if (Object.keys(cotData).length > 0) {
         await prisma.project.update({ where: { id }, data: cotData });

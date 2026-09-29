@@ -88,6 +88,7 @@ model Project {
   tipoInstalacion     String   @default("expuesta")
   tipoCanalización    String   @default("EMT")
   categoriaCable      String   @default("Cat6")
+  marca               String?  // marca de equipos elegida para los precios de la cotización
   distanciaPromedio   Float    @default(30)
   reservaCable        Float    @default(15)
   reservaMateriales   Float    @default(10)
@@ -643,6 +644,7 @@ model PrecioReferencia {
   nombre    String
   categoria String?
   suplidor  String?
+  marca     String?  // marca del equipo (Aruba Instant On, Grandstream, Ubiquiti...)
   precio    Float
   unidad    String   @default("und")
   fuente    String?  // "cotizacion" | "factura"
@@ -654,6 +656,7 @@ model PrecioReferencia {
   @@index([userId])
   @@index([nombre])
   @@index([fecha])
+  @@index([marca])
 }
 
 // ============================================

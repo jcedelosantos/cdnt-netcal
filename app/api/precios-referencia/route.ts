@@ -14,12 +14,14 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url);
     const q = searchParams.get('q')?.trim();
+    const marca = searchParams.get('marca')?.trim();
 
     const precios = await withRetry(() =>
       prisma.precioReferencia.findMany({
         where: {
           userId,
           ...(q ? { nombre: { contains: q, mode: 'insensitive' } } : {}),
+          ...(marca ? { marca } : {}),
         },
         orderBy: [{ nombre: 'asc' }, { fecha: 'desc' }],
       })
@@ -38,7 +40,7 @@ export async function POST(req: Request) {
     const userId = (session?.user as any)?.id;
 
     const body = await req.json();
-    const { nombre, categoria, suplidor, precio, unidad, fuente, fecha, notas } = body;
+    const { nombre, categoria, suplidor, marca, precio, unidad, fuente, fecha, notas } = body;
 
     if (!nombre?.trim()) return NextResponse.json({ error: 'El nombre es requerido' }, { status: 400 });
     if (!precio || isNaN(Number(precio))) return NextResponse.json({ error: 'El precio es requerido' }, { status: 400 });
@@ -51,6 +53,7 @@ export async function POST(req: Request) {
           nombre: nombre.trim(),
           categoria: categoria?.trim() || null,
           suplidor: suplidor?.trim() || null,
+          marca: marca?.trim() || null,
           precio: Number(precio),
           unidad: unidad || 'und',
           fuente: fuente || null,

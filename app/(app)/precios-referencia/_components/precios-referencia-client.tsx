@@ -9,15 +9,15 @@ import { Label } from '@/components/ui/label';
 import { FadeIn } from '@/components/ui/animate';
 import { Tags, Plus, Search, Pencil, Trash2, X, Save, CalendarDays, Building2 } from 'lucide-react';
 
-const CATEGORIAS = ['Cable', 'Cámara', 'Switch', 'NVR/DVR', 'Disco', 'UPS', 'Rack/Gabinete', 'Accesorio', 'Mano de obra', 'Otro'];
+const CATEGORIAS = ['Cable', 'Cableado', 'Cámara', 'Switch', 'NVR/DVR', 'Access point', 'Teléfono IP', 'Central telefónica', 'Router/Gateway', 'Disco', 'UPS', 'Rack/Gabinete', 'Accesorio', 'Mano de obra', 'Otro'];
 const FUENTES = ['cotizacion', 'factura'];
 
 type Precio = {
-  id: string; nombre: string; categoria: string | null; suplidor: string | null;
+  id: string; nombre: string; categoria: string | null; suplidor: string | null; marca: string | null;
   precio: number; unidad: string; fuente: string | null; fecha: string; notas: string | null;
 };
 
-const VACIO = { nombre: '', categoria: '', suplidor: '', precio: '', unidad: 'und', fuente: 'cotizacion', fecha: new Date().toISOString().slice(0, 10), notas: '' };
+const VACIO = { nombre: '', categoria: '', suplidor: '', marca: '', precio: '', unidad: 'und', fuente: 'cotizacion', fecha: new Date().toISOString().slice(0, 10), notas: '' };
 
 export default function PreciosReferenciaClient() {
   const [precios, setPrecios] = useState<Precio[]>([]);
@@ -27,11 +27,17 @@ export default function PreciosReferenciaClient() {
   const [editId, setEditId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [marcas, setMarcas] = useState<string[]>([]);
+  const [filtroMarca, setFiltroMarca] = useState('');
 
-  const fetchPrecios = useCallback(async (q = '') => {
+  const fetchPrecios = useCallback(async (q = '', marca = '') => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/precios-referencia${q ? `?q=${encodeURIComponent(q)}` : ''}`);
+      const params = new URLSearchParams();
+      if (q) params.set('q', q);
+      if (marca) params.set('marca', marca);
+      const qs = params.toString();
+      const res = await fetch(`/api/precios-referencia${qs ? `?${qs}` : ''}`);
       const data = await res.json();
       setPrecios(data.precios ?? []);
     } catch {
@@ -41,17 +47,29 @@ export default function PreciosReferenciaClient() {
     }
   }, []);
 
-  useEffect(() => { fetchPrecios(); }, [fetchPrecios]);
+  const fetchMarcas = useCallback(() => {
+    fetch('/api/precios-referencia/marcas')
+      .then((r) => r.json())
+      .then((d) => setMarcas(d.marcas ?? []))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => { fetchPrecios(); fetchMarcas(); }, [fetchPrecios, fetchMarcas]);
 
   const handleBuscar = (v: string) => {
     setBusqueda(v);
-    fetchPrecios(v);
+    fetchPrecios(v, filtroMarca);
+  };
+
+  const handleFiltroMarca = (v: string) => {
+    setFiltroMarca(v);
+    fetchPrecios(busqueda, v);
   };
 
   const openNew = () => { setForm(VACIO); setEditId(null); setShowForm(true); };
   const openEdit = (p: Precio) => {
     setForm({
-      nombre: p.nombre, categoria: p.categoria ?? '', suplidor: p.suplidor ?? '',
+      nombre: p.nombre, categoria: p.categoria ?? '', suplidor: p.suplidor ?? '', marca: p.marca ?? '',
       precio: String(p.precio), unidad: p.unidad, fuente: p.fuente ?? 'cotizacion',
       fecha: new Date(p.fecha).toISOString().slice(0, 10), notas: p.notas ?? '',
     });
@@ -73,7 +91,8 @@ export default function PreciosReferenciaClient() {
       if (!res.ok) { toast.error(data.error ?? 'Error al guardar'); return; }
       toast.success(editId ? 'Precio actualizado' : 'Precio agregado');
       setShowForm(false);
-      fetchPrecios(busqueda);
+      fetchPrecios(busqueda, filtroMarca);
+      fetchMarcas();
     } catch {
       toast.error('Error al guardar');
     } finally {
@@ -87,7 +106,7 @@ export default function PreciosReferenciaClient() {
       const res = await fetch(`/api/precios-referencia/${id}`, { method: 'DELETE' });
       if (!res.ok) { toast.error('Error al eliminar'); return; }
       toast.success('Eliminado');
-      fetchPrecios(busqueda);
+      fetchPrecios(busqueda, filtroMarca);
     } catch {
       toast.error('Error al eliminar');
     }
@@ -144,6 +163,13 @@ export default function PreciosReferenciaClient() {
                   <Input value={form.suplidor} onChange={e => setForm(f => ({ ...f, suplidor: e.target.value }))} placeholder="Ej: Dytech, ElectronicaPoderosa" />
                 </div>
                 <div className="space-y-2">
+                  <Label>Marca</Label>
+                  <Input list="marcas-precios" value={form.marca} onChange={e => setForm(f => ({ ...f, marca: e.target.value }))} placeholder="Ej: Grandstream, Ubiquiti UniFi" />
+                  <datalist id="marcas-precios">
+                    {marcas.map(m => <option key={m} value={m} />)}
+                  </datalist>
+                </div>
+                <div className="space-y-2">
                   <Label>Precio (RD$) *</Label>
                   <Input type="number" min={0} step="0.01" value={form.precio} onChange={e => setForm(f => ({ ...f, precio: e.target.value }))} placeholder="0.00" />
                 </div>
@@ -177,10 +203,21 @@ export default function PreciosReferenciaClient() {
         </FadeIn>
       )}
 
-      {/* Buscador */}
-      <div className="relative mb-4">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input className="pl-9" placeholder="Buscar producto..." value={busqueda} onChange={e => handleBuscar(e.target.value)} />
+      {/* Buscador y filtro de marca */}
+      <div className="flex flex-col sm:flex-row gap-2 mb-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input className="pl-9" placeholder="Buscar producto..." value={busqueda} onChange={e => handleBuscar(e.target.value)} />
+        </div>
+        <select
+          aria-label="Filtrar por marca"
+          className="h-10 rounded-md border border-input bg-background px-3 text-sm sm:w-56"
+          value={filtroMarca}
+          onChange={e => handleFiltroMarca(e.target.value)}
+        >
+          <option value="">Todas las marcas</option>
+          {marcas.map(m => <option key={m} value={m}>{m}</option>)}
+        </select>
       </div>
 
       {/* Tabla */}
@@ -213,7 +250,9 @@ export default function PreciosReferenciaClient() {
                     <tr key={p.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
                       <td className="px-4 py-3">
                         <div className="font-medium">{p.nombre}</div>
-                        {p.categoria && <div className="text-xs text-muted-foreground">{p.categoria}</div>}
+                        {(p.categoria || p.marca) && (
+                          <div className="text-xs text-muted-foreground">{[p.marca, p.categoria].filter(Boolean).join(' · ')}</div>
+                        )}
                       </td>
                       <td className="px-4 py-3 hidden md:table-cell">
                         {p.suplidor ? (

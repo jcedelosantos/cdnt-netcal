@@ -55,6 +55,7 @@ export interface ExportData {
     clienteRNC?: string;
     ubicacion?: string;
     categoriaCable?: string;
+    marca?: string; // marca de los equipos cotizados
     fecha?: string;
     facturadoEn?: string;
     notas?: string;
@@ -211,6 +212,7 @@ export async function exportarPDF(data: ExportData) {
   if (data.project.clienteRNC) { doc.text(`RNC: ${data.project.clienteRNC}`, mX, y); y += 12; }
   if (data.project.ubicacion) { doc.text(data.project.ubicacion, mX, y); y += 12; }
   if (data.project.categoriaCable) { doc.text(`Categoría cable: ${data.project.categoriaCable}`, mX, y); y += 12; }
+  if (data.project.marca) { doc.text(`Marca de equipos: ${data.project.marca}`, mX, y); y += 12; }
 
   // Número de cotización / factura + fecha (columna derecha)
   const facNum = data.project.numeroFactura;
@@ -432,6 +434,13 @@ export async function exportarExcel(data: ExportData) {
     ws.addRow([]);
   }
 
+  if (data.project.marca) {
+    const rm = ws.addRow([`Marca de equipos: ${data.project.marca}`]);
+    ws.mergeCells(rm.number, 1, rm.number, nCols);
+    rm.getCell(1).font = { bold: true, size: 11 };
+    ws.addRow([]);
+  }
+
   // Encabezado de la tabla
   const headerRow = ws.addRow(cols);
   headerRow.eachCell((cell) => {
@@ -583,6 +592,7 @@ export async function exportarWord(data: ExportData) {
   if (data.project.cliente) metaParts.push(`Cliente: ${data.project.cliente}`);
   if (data.project.ubicacion) metaParts.push(`Ubicación: ${data.project.ubicacion}`);
   metaParts.push(`Categoría: ${data.project.categoriaCable ?? 'Cat6'}`);
+  if (data.project.marca) metaParts.push(`Marca de equipos: ${data.project.marca}`);
   metaParts.push(`Fecha: ${fmtFecha(data.project.fecha)}`);
   children.push(new Paragraph({ children: [new TextRun({ text: metaParts.join('  |  '), size: 18, color: '555555' })] }));
   children.push(new Paragraph({

@@ -80,7 +80,12 @@ export default function ProjectDetailClient({ projectId }: Props) {
   const [cotizacion, setCotizacion] = useState({
     itbis: 18, margenGanancia: 0, costoManoObra: 0,
     costoTransporte: 0, costoConfiguracion: 0, costoCertificacion: 0,
+    marca: '',
   });
+  const [marcas, setMarcas] = useState<string[]>([]);
+  // Producto de referencia usado al aplicar la marca, por id de material (solo informativo)
+  const [modelos, setModelos] = useState<Record<string, string>>({});
+  const [aplicandoMarca, setAplicandoMarca] = useState(false);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [showAddMaterial, setShowAddMaterial] = useState(false);
   const [newMaterial, setNewMaterial] = useState({ categoria: 'Adicionales', nombre: '', cantidad: 1, unidad: 'und', precioUnit: 0 });
@@ -117,6 +122,7 @@ export default function ProjectDetailClient({ projectId }: Props) {
         costoTransporte: p?.costoTransporte ?? 0,
         costoConfiguracion: p?.costoConfiguracion ?? 0,
         costoCertificacion: p?.costoCertificacion ?? 0,
+        marca: p?.marca ?? '',
       });
       // Init prices and quantities from stored materials
       const storedPrices: Record<string, number> = {};
@@ -382,6 +388,7 @@ export default function ProjectDetailClient({ projectId }: Props) {
         clienteRNC: project?.clienteRNC ?? undefined,
         ubicacion: project?.ubicacion ?? undefined,
         categoriaCable: project?.categoriaCable ?? 'Cat6',
+        marca: cotizacion?.marca || undefined,
         fecha: project?.fecha ?? undefined,
         facturadoEn: project?.facturadoEn ?? undefined,
         notas: project?.notas ?? undefined,
@@ -420,6 +427,40 @@ export default function ProjectDetailClient({ projectId }: Props) {
     };
   };
 
+  useEffect(() => {
+    fetch('/api/precios-referencia/marcas')
+      .then((r) => r.json())
+      .then((d) => setMarcas(d.marcas ?? []))
+      .catch(() => {});
+  }, []);
+
+  // Llena el precio de los equipos con la marca elegida (se guardan con "Guardar precios")
+  const handleAplicarMarca = async () => {
+    if (!cotizacion.marca) { toast.error('Elige una marca'); return; }
+    setAplicandoMarca(true);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/precios-marca`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ marca: cotizacion.marca }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data?.error ?? 'Error al aplicar la marca'); return; }
+      const lista: { id: string; precio: number; referencia: string }[] = data.precios ?? [];
+      if (lista.length === 0) {
+        toast.info(`No hay equipos de ${cotizacion.marca} para los materiales de este proyecto`);
+        return;
+      }
+      setPrices((prev) => ({ ...prev, ...Object.fromEntries(lista.map((x) => [x.id, x.precio])) }));
+      setModelos((prev) => ({ ...prev, ...Object.fromEntries(lista.map((x) => [x.id, x.referencia])) }));
+      toast.success(`${lista.length} ${lista.length === 1 ? 'precio aplicado' : 'precios aplicados'} de ${cotizacion.marca}. Revisa y guarda.`);
+    } catch {
+      toast.error('Error al aplicar la marca');
+    } finally {
+      setAplicandoMarca(false);
+    }
+  };
+
   const handleSavePrices = async () => {
     setSaving(true);
     try {
@@ -444,6 +485,7 @@ export default function ProjectDetailClient({ projectId }: Props) {
         toast.error(d?.error ?? 'Error al guardar precios');
         return;
       }
+      setProject((p: any) => ({ ...(p ?? {}), marca: cotizacion.marca || null }));
       toast.success('Precios y cotización guardados');
     } catch {
       toast.error('Error al guardar precios');
@@ -581,6 +623,11 @@ export default function ProjectDetailClient({ projectId }: Props) {
               )}
             </div>
             <div className="flex items-center gap-2 flex-wrap mt-1.5">
+              {project?.marca && (
+                <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-md bg-teal-50 text-teal-700">
+                  Marca: {project.marca}
+                </span>
+              )}
               {project?.numeroCotizacion && (
                 <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 font-mono">
                   <Hash className="w-3 h-3" /> {project.numeroCotizacion}
@@ -954,7 +1001,12 @@ export default function ProjectDetailClient({ projectId }: Props) {
                           <TableRow key={mi} className={isCustom ? 'bg-primary/5' : ''}>
                             <TableCell className="pl-6 font-medium">
                               <span className="flex items-center gap-2">
-                                {m?.nombre ?? ''}
+                                <span>
+                                  {m?.nombre ?? ''}
+                                  {showPrices && modelos[m.id] && (
+                                    <span className="block text-[11px] font-normal text-muted-foreground">{modelos[m.id]}</span>
+                                  )}
+                                </span>
                                 {isCustom && (
                                   <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-primary/10 text-primary">Adicional</span>
                                 )}
@@ -1027,6 +1079,23 @@ export default function ProjectDetailClient({ projectId }: Props) {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="text-xs text-muted-foreground">Marca de equipos</label>
+                  <div className="flex gap-2">
+                    <select
+                      className="flex-1 h-9 px-3 rounded-md border border-input bg-background text-sm"
+                      value={cotizacion.marca}
+                      onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setCotizacion((p) => ({ ...p, marca: e.target.value }))}
+                    >
+                      <option value="">Sin marca</option>
+                      {marcas.map((m) => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                    <Button size="sm" variant="outline" className="h-9" disabled={!cotizacion.marca || aplicandoMarca} onClick={handleAplicarMarca}>
+                      {aplicandoMarca ? 'Aplicando…' : 'Aplicar precios'}
+                    </Button>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">Pone el precio de switches, cámaras, NVR, APs, teléfonos y centrales con esa marca. Sale en la cotización.</p>
+                </div>
                 <div className="space-y-1">
                   <label className="text-xs text-muted-foreground">Moneda</label>
                   <select
