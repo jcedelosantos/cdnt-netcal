@@ -199,7 +199,7 @@ export function materialesFirewall(entrada: EntradaFirewall): MaterialItem[] {
     materiales.push(und('Firewall', 'FortiGate mediano con licencia UTP 1 año', 1));
   }
   materiales.push(und('Servicios', 'Instalación de firewall', 1), und('Servicios', 'Configuración de firewall básica', 1));
-  if (entrada.configuracion === 'avanzada') materiales.push(und('Servicios', 'Configuración de firewall avanzada (VPN y políticas)', 1));
+  if (entrada.configuracion === 'avanzada') materiales.push(und('Servicios', 'Configuración de firewall avanzada (VPN, segmentación de red y políticas de seguridad)', 1));
   return materiales;
 }
 
@@ -240,7 +240,7 @@ const ETIQUETA_WIFI = {
 const ETIQUETA_FIREWALL = {
   marca: { fortinet: 'Fortinet', aruba: 'Aruba Instant On' },
   usuarios: { '25': 'hasta 25 usuarios', '75': '26 a 75 usuarios', '150': 'más de 75 usuarios' },
-  configuracion: { basica: 'configuración básica', avanzada: 'configuración avanzada (VPN y políticas)' },
+  configuracion: { basica: 'configuración básica', avanzada: 'configuración avanzada (VPN, segmentación de red y políticas de seguridad)' },
 } as const;
 
 type Definicion<E> = {
