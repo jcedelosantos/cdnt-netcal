@@ -19,12 +19,13 @@ type Referencia = { nombre: string; precio: number; fecha: string };
 type Solicitud = { id: string; nombre: string; cliente: string | null; createdAt: string; aprobado: boolean };
 type Ejemplo = { texto: string; minimo: number; maximo: number; total: number; costoMateriales: number; sinPrecio: string[] } | null;
 
-type Area = 'cctv' | 'telefonia' | 'wifi' | 'firewall';
+type Area = 'cctv' | 'telefonia' | 'wifi' | 'firewall' | 'redes';
 const AREAS: { id: Area; titulo: string; unidad: string; fijo: string }[] = [
   { id: 'cctv', titulo: 'CCTV', unidad: 'cámara', fijo: 'Transporte, configuración del NVR, etc.' },
   { id: 'telefonia', titulo: 'Central telefónica', unidad: 'extensión', fijo: 'Configuración de la central, transporte, etc.' },
   { id: 'wifi', titulo: 'WiFi empresarial', unidad: 'access point', fijo: 'Configuración de la red WiFi, transporte, etc.' },
   { id: 'firewall', titulo: 'Firewall', unidad: 'equipo', fijo: 'Transporte, etc. La configuración va como material (servicio).' },
+  { id: 'redes', titulo: 'Redes', unidad: 'punto de red', fijo: 'Certificación, etiquetado, transporte, etc.' },
 ];
 
 const dop = (n: number) => `RD$ ${n.toLocaleString('es-DO', { maximumFractionDigits: 0 })}`;

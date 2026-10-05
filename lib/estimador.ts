@@ -1,4 +1,4 @@
-// Estimador público de cedanet.net (CCTV, central telefónica, WiFi y firewall).
+// Estimador público de cedanet.net (CCTV, central telefónica, WiFi, firewall y redes).
 // Cada área tiene su propia tarifa en /estimador-web; los precios salen de "Precios de referencia".
 import crypto from 'crypto';
 import { z } from 'zod';
@@ -221,6 +221,58 @@ export function configFirewall(): ConfigProyecto {
   };
 }
 
+// =================== REDES (CABLEADO ESTRUCTURADO) ===================
+// Basado en la cotización Nexxt de Omega Tech: cable, jacks, patch panel, patch cords y gabinete.
+
+export const entradaRedesSchema = z.object({
+  puntos: z.number().int().min(1).max(96),
+  distancia: z.enum(['corta', 'media', 'larga']),
+  gabinete: z.enum(['si', 'no']), // ¿ya tiene gabinete o rack?
+});
+export type EntradaRedes = z.infer<typeof entradaRedesSchema>;
+
+const METROS_POR_PUNTO: Record<EntradaRedes['distancia'], number> = { corta: 15, media: 35, larga: 60 };
+const PIES_ROLLO_METROS = 305; // rollo de 1000 pies
+const PUNTOS_GABINETE_PEQUENO = 24; // hasta 24 puntos cabe en el de 12U
+const PUERTOS_PANEL = 24;
+
+export function materialesRedes(entrada: EntradaRedes): MaterialItem[] {
+  const n = entrada.puntos;
+  const paneles = Math.ceil(n / PUERTOS_PANEL);
+  const masDiez = Math.ceil((n * 11) / 10);
+  const metros = n * METROS_POR_PUNTO[entrada.distancia] * 1.15;
+  const materiales = [
+    und('Cableado', 'Rollo cable UTP Cat6 (1000 pies)', Math.ceil(metros / PIES_ROLLO_METROS), 'rollo'),
+    und('Cableado', 'Jack keystone Cat6', dobleMas10(n)),
+    und('Cableado', 'Patch cord Cat6 1 pie (gabinete)', masDiez),
+    und('Cableado', 'Patch cord Cat6 7 pies (equipo)', masDiez),
+    und('Cableado', 'Patch panel modular 24 puertos', paneles),
+    und('Gabinete', 'Organizador de cables horizontal 1U', paneles),
+  ];
+  if (entrada.gabinete === 'no') {
+    materiales.push(und('Gabinete', n <= PUNTOS_GABINETE_PEQUENO ? 'Gabinete de pared 12U' : 'Gabinete de pared 15U', 1));
+  }
+  return materiales;
+}
+
+export function configRedes(entrada: EntradaRedes): ConfigProyecto {
+  return {
+    puntos: [{ tipo: 'datos', cantidad: entrada.puntos, distancia: METROS_POR_PUNTO[entrada.distancia] }],
+    categoriaCable: 'Cat6',
+    tipoInstalacion: 'expuesta',
+    tipoCanalizacion: 'canaleta',
+    reservaCable: 15,
+    reservaMateriales: 10,
+    switchPuertos: 24,
+    switchPoE: false,
+    switchPuertosPoE: 0,
+    gabineteRU: entrada.puntos <= PUNTOS_GABINETE_PEQUENO ? 12 : 15,
+    incluyeUPS: false,
+    distanciaPromedio: METROS_POR_PUNTO[entrada.distancia],
+    modoAvanzado: false,
+  };
+}
+
 // =================== ÁREAS ===================
 
 const ETIQUETA_CCTV = {
@@ -241,6 +293,11 @@ const ETIQUETA_FIREWALL = {
   marca: { fortinet: 'Fortinet', aruba: 'Aruba Instant On' },
   usuarios: { '25': 'hasta 25 usuarios', '75': '26 a 75 usuarios', '150': 'más de 75 usuarios' },
   configuracion: { basica: 'configuración básica', avanzada: 'configuración avanzada (VPN, segmentación de red y políticas de seguridad)' },
+} as const;
+
+const ETIQUETA_REDES = {
+  distancia: { corta: 'menos de 20 m', media: '20 a 50 m', larga: 'más de 50 m' },
+  gabinete: { si: 'ya tiene gabinete', no: 'con gabinete nuevo' },
 } as const;
 
 type Definicion<E> = {
@@ -313,10 +370,24 @@ const firewall: Definicion<EntradaFirewall> = {
   ejemplo: { entrada: { marca: 'fortinet', usuarios: '25', configuracion: 'basica' }, texto: 'Fortinet, hasta 25 usuarios, configuración básica' },
 };
 
-export const AREAS = ['cctv', 'telefonia', 'wifi', 'firewall'] as const;
+const redes: Definicion<EntradaRedes> = {
+  schema: entradaRedesSchema,
+  materiales: materialesRedes,
+  unidades: (e) => e.puntos,
+  config: configRedes,
+  resumen: (e) => `Redes: ${e.puntos} puntos de red, distancia ${ETIQUETA_REDES.distancia[e.distancia]}, ${ETIQUETA_REDES.gabinete[e.gabinete]}`,
+  nombreProyecto: (e) => `Cableado estructurado ${e.puntos} puntos`,
+  combinaciones: [
+    { puntos: 24, distancia: 'media', gabinete: 'no' },
+    { puntos: 48, distancia: 'media', gabinete: 'no' },
+  ],
+  ejemplo: { entrada: { puntos: 24, distancia: 'media', gabinete: 'no' }, texto: '24 puntos, distancia media, con gabinete nuevo' },
+};
+
+export const AREAS = ['cctv', 'telefonia', 'wifi', 'firewall', 'redes'] as const;
 export type Area = (typeof AREAS)[number];
 export const areaSchema = z.enum(AREAS);
-export const DEFINICIONES: Record<Area, Definicion<any>> = { cctv, telefonia, wifi, firewall };
+export const DEFINICIONES: Record<Area, Definicion<any>> = { cctv, telefonia, wifi, firewall, redes };
 
 // Todos los nombres de material que puede generar un área (para configurar la tarifa)
 export function nombresMateriales(area: Area): string[] {
