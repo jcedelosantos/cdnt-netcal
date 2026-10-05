@@ -249,12 +249,8 @@ export function materialesRedes(entrada: EntradaRedes): MaterialItem[] {
     und('Cableado', 'Patch panel modular 24 puertos', paneles),
     und('Gabinete', 'Organizador de cables horizontal 1U', paneles),
   ];
-  // Switch Aruba Instant On: puertos para los puntos y el enlace a internet (hasta 6 puntos, uno de 8)
-  materiales.push(
-    n + 2 <= 8
-      ? und('Redes', 'Switch 8 puertos', 1)
-      : und('Redes', 'Switch 24 puertos', Math.ceil((n + 2) / PUERTOS_SWITCH))
-  );
+  // Switch Aruba Instant On: un puerto por punto; el enlace a internet va por un puerto libre o el SFP del 1930
+  materiales.push(n <= 7 ? und('Redes', 'Switch 8 puertos', 1) : und('Redes', 'Switch 24 puertos', Math.ceil(n / PUERTOS_SWITCH)));
   if (entrada.gabinete === 'no') {
     materiales.push(und('Gabinete', n <= PUNTOS_GABINETE_PEQUENO ? 'Gabinete de pared 12U' : 'Gabinete de pared 15U', 1));
   }
