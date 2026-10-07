@@ -79,6 +79,11 @@ export default function Reporte607Client({ empresaNombre }: Props) {
           <p className="text-muted-foreground text-sm ml-[52px]">
             Registro de ventas con NCF para la DGII
           </p>
+          {/* Los proyectos ahora se facturan en INTEG (ver lib/integ-facturacion.ts), que arma el 607
+              de toda la secuencia de Cedanet: este reporte queda solo de consulta. */}
+          <p className="text-sm ml-[52px] mt-2 rounded-md bg-amber-50 text-amber-800 px-3 py-2">
+            El 607 oficial ahora sale de INTEG (Super Admin &gt; Facturas recurrentes &gt; 607): incluye los proyectos facturados desde aquí, las igualas y las suscripciones. Usa este reporte solo de consulta.
+          </p>
         </div>
       </FadeIn>
 

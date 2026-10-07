@@ -82,6 +82,9 @@ model Project {
   numeroCotizacion    String?
   numeroFactura       String?
   facturadoEn         DateTime?
+  // Id de la factura en INTEG cuando se facturó desde allá (ver lib/integ-facturacion.ts). Con
+  // valor, el NCF es de la secuencia real y ya no se puede anular ni editar desde NetPlanner.
+  integFacturaId      Int?
   estadoPago          String   @default("pendiente")
   moneda              String   @default("DOP")
   modoAvanzado        Boolean  @default(false)

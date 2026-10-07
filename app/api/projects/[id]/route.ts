@@ -6,7 +6,7 @@ import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 import { withRetry } from '@/lib/db-utils';
 import { calcularMateriales, type ConfigProyecto } from '@/lib/calculations';
-import { generarNumeroFactura } from '@/lib/numeracion';
+import { FacturacionError, facturarEnInteg, totalesProyecto } from '@/lib/integ-facturacion';
 
 export async function GET(req: Request, { params }: { params: { id: string } }) {
   try {
@@ -209,20 +209,48 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       data.aprobadoEn = body.aprobado ? new Date() : null;
     }
 
-    // Facturar: genera número de factura y fecha (solo una vez)
+    // Facturar: la factura (y su NCF) la emite INTEG, de la secuencia única de Cedanet — ver
+    // lib/integ-facturacion.ts. Solo una vez por proyecto.
     if (body?.facturar === true) {
       if (!(existing as any).numeroFactura) {
-        data.numeroFactura = await generarNumeroFactura(userId);
-        data.facturadoEn = new Date();
+        const proyecto = await withRetry(() =>
+          prisma.project.findFirst({
+            where: { id, userId },
+            include: { materiales: { select: { subtotal: true } }, inventoryClient: { select: { email: true, telefono: true, direccion: true } } },
+          })
+        );
+        if (!proyecto) return NextResponse.json({ error: 'Proyecto no encontrado' }, { status: 404 });
+        // La pantalla manda el total que le mostró al usuario: si hay cambios sin guardar, la
+        // factura saldría por otro monto.
+        const esperado = Number(body?.totalEsperadoCents);
+        if (Number.isFinite(esperado) && Math.abs(totalesProyecto(proyecto as any).totalCents - esperado) > 1) {
+          return NextResponse.json({ error: 'El total en pantalla no coincide con el guardado. Guarda los cambios del proyecto y vuelve a facturar.' }, { status: 409 });
+        }
+        try {
+          const factura = await facturarEnInteg(proyecto as any, body?.enviar !== false);
+          data.numeroFactura = factura.ncf;
+          data.facturadoEn = new Date(factura.issuedAt);
+          data.integFacturaId = factura.id;
+        } catch (err) {
+          if (err instanceof FacturacionError) return NextResponse.json({ error: err.message }, { status: err.status });
+          throw err;
+        }
       }
     } else if (body?.facturar === false) {
-      // Revertir facturación
+      // Un NCF de INTEG ya se usó: no se puede "desfacturar" desde acá (haría falta una nota de crédito).
+      if ((existing as any).integFacturaId) {
+        return NextResponse.json({ error: 'Esta factura se emitió en INTEG con NCF y no se puede anular desde NetPlanner. Para anularla hace falta una nota de crédito.' }, { status: 409 });
+      }
+      // Revertir facturación (facturas viejas, numeradas en NetPlanner)
       data.numeroFactura = null;
       data.facturadoEn = null;
     }
 
-    // Edición directa del número de factura (NCF)
+    // Edición directa del número de factura (solo facturas viejas, numeradas en NetPlanner)
     if (typeof body?.numeroFactura === 'string') {
+      if ((existing as any).integFacturaId) {
+        return NextResponse.json({ error: 'El NCF de una factura emitida en INTEG no se puede editar.' }, { status: 409 });
+      }
       data.numeroFactura = body.numeroFactura;
     }
 
@@ -237,6 +265,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       aprobadoEn: project.aprobadoEn?.toISOString?.() ?? null,
       numeroFactura: (project as any).numeroFactura ?? null,
       facturadoEn: (project as any).facturadoEn?.toISOString?.() ?? null,
+      integFacturaId: (project as any).integFacturaId ?? null,
     });
   } catch (error: any) {
     console.error('PATCH project error:', error);
