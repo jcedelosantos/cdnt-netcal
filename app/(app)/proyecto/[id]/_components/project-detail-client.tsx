@@ -211,6 +211,12 @@ export default function ProjectDetailClient({ projectId }: Props) {
   };
 
   const handleFacturar = async () => {
+    // Facturado desde INTEG: el NCF ya es de la secuencia real y no se anula desde acá; el botón
+    // abre la factura tal como salió.
+    if (project?.numeroFactura && project?.integFacturaId) {
+      window.open(`/api/projects/${projectId}/factura-pdf`, '_blank', 'noopener');
+      return;
+    }
     if (project?.numeroFactura) {
       if (!confirm('Este proyecto ya tiene factura. ¿Deseas anular la factura?')) return;
       setFacturando(true);
@@ -230,16 +236,24 @@ export default function ProjectDetailClient({ projectId }: Props) {
       }
       return;
     }
+    // La factura la emite INTEG con el próximo NCF de la secuencia de Cedanet (ver
+    // lib/integ-facturacion.ts): un NCF no se puede reusar, así que se confirma antes.
+    const totales = calcularTotalesCotizacion();
+    const totalTexto = `RD$ ${totales.total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (!confirm(`Se emitirá la factura de ${project?.cliente || 'este cliente'} por ${totalTexto} en INTEG, con el próximo NCF. Si el cliente tiene correo en Inventario, INTEG se la envía. El NCF no se puede reusar. ¿Continuar?`)) return;
     setFacturando(true);
     try {
       const res = await fetch(`/api/projects/${projectId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ facturar: true }),
+        body: JSON.stringify({ facturar: true, enviar: true, totalEsperadoCents: Math.round(totales.total * 100) }),
       });
       const d = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error();
-      toast.success(`Factura ${d?.numeroFactura ?? ''} generada`);
+      if (!res.ok) {
+        toast.error(d?.error ?? 'Error al facturar');
+        return;
+      }
+      toast.success(`Factura ${d?.numeroFactura ?? ''} emitida en INTEG`);
       fetchProject();
     } catch {
       toast.error('Error al facturar');
@@ -636,6 +650,8 @@ export default function ProjectDetailClient({ projectId }: Props) {
               {project?.numeroFactura && !editandoNcf && (
                 <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 font-mono">
                   <Receipt className="w-3 h-3" /> {project.numeroFactura}
+                  {/* Solo facturas viejas numeradas en NetPlanner: el NCF de INTEG no se edita. */}
+                  {!project?.integFacturaId && (
                   <button
                     className="ml-1 hover:text-indigo-900"
                     title="Editar NCF"
@@ -650,6 +666,7 @@ export default function ProjectDetailClient({ projectId }: Props) {
                   >
                     <Edit className="w-3 h-3" />
                   </button>
+                  )}
                 </span>
               )}
               {project?.numeroFactura && editandoNcf && (
@@ -719,7 +736,7 @@ export default function ProjectDetailClient({ projectId }: Props) {
               disabled={facturando}
               className={project?.numeroFactura ? 'text-indigo-700 border-indigo-300 hover:bg-indigo-50' : 'bg-indigo-600 hover:bg-indigo-700'}
             >
-              <Receipt className="w-4 h-4 mr-1" /> {facturando ? '...' : project?.numeroFactura ? 'Facturado' : 'Facturar'}
+              <Receipt className="w-4 h-4 mr-1" /> {facturando ? '...' : project?.numeroFactura ? (project?.integFacturaId ? 'Ver factura' : 'Facturado') : 'Facturar'}
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

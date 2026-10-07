@@ -29,7 +29,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       id: _id, userId: _uid, createdAt: _ca, updatedAt: _ua,
       puntos: _puntos, materiales: _materiales,
       aprobado: _ap, aprobadoEn: _apEn,
-      numeroCotizacion: _nc, numeroFactura: _nf, facturadoEn: _fEn,
+      numeroCotizacion: _nc, numeroFactura: _nf, facturadoEn: _fEn, integFacturaId: _ifId,
       ...scalarData
     } = original as any;
 
