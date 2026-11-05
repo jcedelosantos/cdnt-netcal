@@ -1,0 +1,34 @@
+name: Daily Alert Generation
+
+on:
+  schedule:
+    - cron: '0 8 * * *'   # 8:00 AM UTC cada día
+  workflow_dispatch:       # disparo manual para pruebas
+
+jobs:
+  generate-alerts:
+    name: Generate alerts for all users
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Call alerts cron endpoint
+        run: |
+          STATUS=$(curl -s -o response.json -w "%{http_code}" \
+            -X GET \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.APP_URL }}/api/cron/alerts")
+
+          echo "HTTP status: $STATUS"
+          cat response.json
+
+          if [ "$STATUS" != "200" ]; then
+            echo "::error::Alert generation failed with HTTP $STATUS"
+            exit 1
+          fi
+
+      - name: Print summary
+        if: success()
+        run: |
+          echo "::notice::Alerts generated successfully"
+          cat response.json
