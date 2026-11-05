@@ -227,7 +227,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
           return NextResponse.json({ error: 'El total en pantalla no coincide con el guardado. Guarda los cambios del proyecto y vuelve a facturar.' }, { status: 409 });
         }
         try {
-          const factura = await facturarEnInteg(proyecto as any, body?.enviar !== false);
+          const factura = await facturarEnInteg(proyecto as any, body?.enviar !== false, body?.regimenEspecial === true);
           data.numeroFactura = factura.ncf;
           data.facturadoEn = new Date(factura.issuedAt);
           data.integFacturaId = factura.id;
