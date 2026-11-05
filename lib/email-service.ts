@@ -246,6 +246,65 @@ async function sendEmail(
 /**
  * Main: Send reports to all enabled users
  */
+/**
+ * Send reports filtered by frequency, updating proximaEjecucion after each send.
+ * Called by the cron endpoint — does not require an active user session.
+ */
+export async function sendScheduledReportsByFrequency(
+  frequency: 'daily' | 'weekly' | 'monthly'
+): Promise<{ sent: number; failed: number }> {
+  try {
+    const now = new Date();
+
+    const schedules = await prisma.automationSchedule.findMany({
+      where: {
+        tipo: 'email_report',
+        activo: true,
+        frecuencia: frequency,
+        OR: [{ proximaEjecucion: null }, { proximaEjecucion: { lte: now } }],
+      },
+    });
+
+    let sent = 0, failed = 0;
+
+    for (const schedule of schedules) {
+      const user = await prisma.user.findUnique({ where: { id: schedule.userId } });
+      if (!user) continue;
+
+      const reportData = await fetchReportData(user.id);
+      if (!reportData) { failed++; continue; }
+
+      const company: CompanyInfo = {
+        nombre: user.empresaNombre ?? undefined,
+        email: user.email,
+        logo: user.empresaLogo ?? undefined,
+        rnc: user.empresaRNC ?? undefined,
+      };
+
+      const html = createEmailTemplate(reportData, company);
+      const subject = `📊 Reporte de ROI - ${now.toLocaleDateString('es-DO')}`;
+      const success = await sendEmail(user.email, subject, html, user.id);
+
+      const nextRun = new Date(now);
+      if (frequency === 'daily') nextRun.setDate(nextRun.getDate() + 1);
+      else if (frequency === 'weekly') nextRun.setDate(nextRun.getDate() + 7);
+      else nextRun.setMonth(nextRun.getMonth() + 1);
+
+      await prisma.automationSchedule.update({
+        where: { id: schedule.id },
+        data: { ultimaEjecucion: now, proximaEjecucion: nextRun },
+      });
+
+      success ? sent++ : failed++;
+    }
+
+    return { sent, failed };
+  } catch (error) {
+    console.error('Error in sendScheduledReportsByFrequency:', error);
+    return { sent: 0, failed: 0 };
+  }
+}
+
 export async function sendScheduledReports(): Promise<{ sent: number; failed: number }> {
   try {
     const users = await prisma.user.findMany({
