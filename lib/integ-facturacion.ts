@@ -65,11 +65,16 @@ export function totalesProyecto(p: ProyectoAFacturar) {
   return { subtotalCents, itbisCents, totalCents: subtotalCents + itbisCents };
 }
 
-export function armarPedido(p: ProyectoAFacturar, enviar: boolean) {
+// regimenEspecial: cliente exonerado de ITBIS en este proyecto (ej. algunos de Club Naco). INTEG lo
+// emite como E44 (régimen especial) en vez de E31; el proyecto tiene que estar con ITBIS 0%.
+export function armarPedido(p: ProyectoAFacturar, enviar: boolean, regimenEspecial = false) {
   if (!p.cliente?.trim()) throw new FacturacionError('El proyecto no tiene cliente: agrégalo antes de facturar.', 400);
   // INTEG factura con ITBIS de 18% o exento; otra tasa no tendría cómo salir bien en la factura.
   if (p.itbis !== 18 && p.itbis !== 0) {
     throw new FacturacionError(`El proyecto tiene ITBIS de ${p.itbis}%. Solo se puede facturar con 18% o exento (0%).`, 400);
+  }
+  if (regimenEspecial && p.itbis !== 0) {
+    throw new FacturacionError('Un proyecto exonerado (E44) va sin ITBIS: pon el ITBIS del proyecto en 0% y guarda antes de facturar.', 400);
   }
   const { subtotalCents } = totalesProyecto(p);
   if (subtotalCents <= 0) throw new FacturacionError('El proyecto da cero: no hay nada que facturar.', 400);
@@ -94,16 +99,17 @@ export function armarPedido(p: ProyectoAFacturar, enviar: boolean) {
       },
     ],
     send: enviar,
+    ...(regimenEspecial ? { specialRegime: true } : {}),
   };
 }
 
-export async function facturarEnInteg(p: ProyectoAFacturar, enviar: boolean): Promise<FacturaInteg> {
+export async function facturarEnInteg(p: ProyectoAFacturar, enviar: boolean, regimenEspecial = false): Promise<FacturaInteg> {
   const baseUrl = process.env.INTEG_API_URL?.trim().replace(/\/+$/, '');
   const token = process.env.NETPLANNER_FACTURACION_TOKEN?.trim();
   if (!baseUrl || !token) {
     throw new FacturacionError('Falta conectar NetPlanner con INTEG (variables INTEG_API_URL y NETPLANNER_FACTURACION_TOKEN en Railway).', 503);
   }
-  const pedido = armarPedido(p, enviar);
+  const pedido = armarPedido(p, enviar, regimenEspecial);
 
   let res: Response;
   try {

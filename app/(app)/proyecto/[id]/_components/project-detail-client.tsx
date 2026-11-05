@@ -93,6 +93,8 @@ export default function ProjectDetailClient({ projectId }: Props) {
   const [precioSugerido, setPrecioSugerido] = useState<{ precio: number; suplidor: string | null; fecha: string } | null>(null);
   const [collapsedCats, setCollapsedCats] = useState<Record<string, boolean>>({});
   const [facturando, setFacturando] = useState(false);
+  // Proyecto exonerado de ITBIS: INTEG lo factura como E44 (régimen especial). Solo con ITBIS 0%.
+  const [exonerado, setExonerado] = useState(false);
   const [editandoNcf, setEditandoNcf] = useState(false);
   const [ncfTipo, setNcfTipo] = useState('B01');
   const [ncfNumero, setNcfNumero] = useState('');
@@ -240,13 +242,15 @@ export default function ProjectDetailClient({ projectId }: Props) {
     // lib/integ-facturacion.ts): un NCF no se puede reusar, así que se confirma antes.
     const totales = calcularTotalesCotizacion();
     const totalTexto = `RD$ ${totales.total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    if (!confirm(`Se emitirá la factura de ${project?.cliente || 'este cliente'} por ${totalTexto} en INTEG, con el próximo NCF. Si el cliente tiene correo en Inventario, INTEG se la envía. El NCF no se puede reusar. ¿Continuar?`)) return;
+    const especial = exonerado && project?.itbis === 0;
+    const tipoTexto = especial ? ' como exonerada (E44, régimen especial)' : '';
+    if (!confirm(`Se emitirá la factura de ${project?.cliente || 'este cliente'} por ${totalTexto}${tipoTexto} en INTEG, con el próximo NCF. Si el cliente tiene correo en Inventario, INTEG se la envía. El NCF no se puede reusar. ¿Continuar?`)) return;
     setFacturando(true);
     try {
       const res = await fetch(`/api/projects/${projectId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ facturar: true, enviar: true, totalEsperadoCents: Math.round(totales.total * 100) }),
+        body: JSON.stringify({ facturar: true, enviar: true, regimenEspecial: especial, totalEsperadoCents: Math.round(totales.total * 100) }),
       });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -729,6 +733,12 @@ export default function ProjectDetailClient({ projectId }: Props) {
             >
               <CheckCircle className="w-4 h-4 mr-1" /> {project?.aprobado ? 'Aprobado' : 'Aprobar'}
             </Button>
+            {!project?.numeroFactura && project?.itbis === 0 && (
+              <label className="inline-flex items-center gap-1 text-xs text-gray-700" title="Cliente exonerado de ITBIS: INTEG emite un E44 (régimen especial) en vez de E31">
+                <input type="checkbox" checked={exonerado} onChange={(e) => setExonerado(e.target.checked)} />
+                Exonerado (E44)
+              </label>
+            )}
             <Button
               variant={project?.numeroFactura ? 'outline' : 'default'}
               size="sm"
