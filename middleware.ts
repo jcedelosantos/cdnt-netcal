@@ -11,7 +11,9 @@ export default withAuth(
         const { pathname } = req.nextUrl;
         if (pathname === '/' || pathname === '/login' || pathname === '/registro' ||
             pathname.startsWith('/api/auth') || pathname.startsWith('/api/signup') ||
-            pathname.startsWith('/api/public/')) {
+            pathname.startsWith('/api/public/') ||
+            // Los cron (GitHub Actions) se autentican con el header x-cron-secret en su propia ruta.
+            pathname.startsWith('/api/cron/')) {
           return true;
         }
         return !!token;
@@ -21,5 +23,5 @@ export default withAuth(
 );
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.*|og-image.*|manifest.webmanifest|apple-touch-icon.*|pwa/|api/auth|api/signup|api/public/).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.*|og-image.*|manifest.webmanifest|apple-touch-icon.*|pwa/|api/auth|api/signup|api/public/|api/cron/).*)'],
 };
