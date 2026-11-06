@@ -2,7 +2,7 @@ name: Daily Alert Generation
 
 on:
   schedule:
-    - cron: '0 8 * * *'   # 8:00 AM UTC cada día
+    - cron: '17 8 * * *'  # 8:17 AM UTC cada día (fuera de la hora en punto: GitHub descarta corridas cuando hay carga)
   workflow_dispatch:       # disparo manual para pruebas
 
 jobs:
