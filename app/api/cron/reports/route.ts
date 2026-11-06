@@ -6,8 +6,10 @@ const VALID_FREQUENCIES = ['daily', 'weekly', 'monthly'] as const;
 type Frequency = (typeof VALID_FREQUENCIES)[number];
 
 function isAuthorized(request: Request): boolean {
-  const secret = request.headers.get('x-cron-secret');
-  return !!process.env.CRON_SECRET && secret === process.env.CRON_SECRET;
+  // trim: un espacio o salto de línea al copiar la clave en Railway o GitHub no debe romper el cron.
+  const secret = request.headers.get('x-cron-secret')?.trim();
+  const expected = process.env.CRON_SECRET?.trim();
+  return !!expected && secret === expected;
 }
 
 export async function POST(request: Request) {
