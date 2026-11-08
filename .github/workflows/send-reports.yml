@@ -1,10 +1,8 @@
 name: Send Scheduled Reports
 
 on:
-  schedule:
-    - cron: '23 9 * * *'    # daily   — cada día a las 9:23 AM UTC
-    - cron: '23 9 * * 1'    # weekly  — lunes a las 9:23 AM UTC
-    - cron: '23 9 1 * *'    # monthly — día 1 de cada mes a las 9:23 AM UTC
+  # El horario lo corre Railway (servicio netplanner-cron, carpeta cron/): GitHub no lo estaba
+  # disparando. Esto queda solo para mandar un reporte a mano.
   workflow_dispatch:
     inputs:
       frequency:
