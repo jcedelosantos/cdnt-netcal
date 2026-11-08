@@ -1,9 +1,9 @@
 name: Daily Alert Generation
 
 on:
-  schedule:
-    - cron: '17 8 * * *'  # 8:17 AM UTC cada día (fuera de la hora en punto: GitHub descarta corridas cuando hay carga)
-  workflow_dispatch:       # disparo manual para pruebas
+  # El horario diario lo corre Railway (servicio netplanner-cron, carpeta cron/): GitHub no lo
+  # estaba disparando. Esto queda solo para correrlo a mano.
+  workflow_dispatch:
 
 jobs:
   generate-alerts:
