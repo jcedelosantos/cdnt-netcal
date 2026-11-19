@@ -1,6 +1,0 @@
-[deploy]
-# Aplica migraciones de forma segura (sin --accept-data-loss) y arranca la app
-startCommand = "node scripts/migrate-deploy.js && npm start"
-# Si el nuevo despliegue no responde, Railway mantiene el anterior
-healthcheckPath = "/login"
-healthcheckTimeout = 180
