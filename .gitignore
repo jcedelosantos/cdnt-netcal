@@ -27,3 +27,6 @@ npm-debug.log*
 # TypeScript incremental build
 *.tsbuildinfo
 graphify-out/
+
+# Railway IaC (SDK local de .railway)
+.railway/node_modules
