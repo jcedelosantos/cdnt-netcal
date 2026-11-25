@@ -5,8 +5,8 @@
  * mismo total.
  *
  * - El margen va dentro del precio de cada material (precio de venta); nunca se muestra aparte.
- * - Mano de obra, transporte, configuración y certificación van juntos en una línea
- *   "Instalación y servicios", para no desglosar costos internos al cliente.
+ * - Cada servicio va en su propia línea (Instalación = mano de obra, Configuración, Certificación,
+ *   Transporte), solo si tiene monto: son cosas distintas para el cliente.
  * - Todo en centavos y con el ITBIS redondeado por línea, igual que INTEG (computeTotals en
  *   integ-app/api/src/lib/client-invoices.ts). Si se calcula distinto, el total de la factura no
  *   coincide con el de la cotización por algún centavo.
@@ -40,8 +40,6 @@ export type LineaCotizacion = {
   esServicios: boolean;
 };
 
-export const NOMBRE_LINEA_SERVICIOS = 'Instalación y servicios';
-
 export function lineasCotizacion(materiales: MaterialCotizable[], c: CondicionesCotizacion) {
   const factor = 1 + (c.margenGanancia ?? 0) / 100;
   const itbisPct = c.itbis ?? 18;
@@ -63,18 +61,23 @@ export function lineasCotizacion(materiales: MaterialCotizable[], c: Condiciones
     };
   });
 
-  const serviciosCents = Math.round(
-    ((c.costoManoObra ?? 0) + (c.costoTransporte ?? 0) + (c.costoConfiguracion ?? 0) + (c.costoCertificacion ?? 0)) * 100
-  );
-  if (serviciosCents > 0) {
+  const servicios: Array<[string, number | null | undefined]> = [
+    ['Instalación', c.costoManoObra],
+    ['Configuración', c.costoConfiguracion],
+    ['Certificación', c.costoCertificacion],
+    ['Transporte', c.costoTransporte],
+  ];
+  for (const [nombre, monto] of servicios) {
+    const cents = Math.round((monto ?? 0) * 100);
+    if (cents <= 0) continue;
     lineas.push({
-      nombre: NOMBRE_LINEA_SERVICIOS,
+      nombre,
       descripcion: '',
       cantidad: 1,
       unidad: 'servicio',
-      precioUnitCents: serviciosCents,
-      importeCents: serviciosCents,
-      itbisCents: itbisDe(serviciosCents),
+      precioUnitCents: cents,
+      importeCents: cents,
+      itbisCents: itbisDe(cents),
       esServicios: true,
     });
   }

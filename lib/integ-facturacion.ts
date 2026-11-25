@@ -11,7 +11,7 @@
  *   NETPLANNER_FACTURACION_TOKEN  el mismo valor en NetPlanner y en INTEG
  *
  * La factura lleva las MISMAS líneas de la cotización (lib/cotizacion-lineas.ts): cada material con
- * su precio de venta y descripción, más "Instalación y servicios" si hay costos. Nunca los costos de
+ * su precio de venta y descripción, y cada servicio (instalación, configuración, etc.) en su línea. Nunca los costos de
  * suplidor ni una línea consolidada.
  */
 

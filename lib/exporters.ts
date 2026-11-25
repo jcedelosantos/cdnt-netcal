@@ -328,8 +328,8 @@ export async function exportarPDF(data: ExportData) {
   // ── TOTALES (derecha) ────────────────────────────────────────────────
   if (showP && data.totales) {
     const t = data.totales;
-    // Subtotal = suma de las líneas (el margen va dentro de cada precio y los costos en la línea
-    // "Instalación y servicios"; ver lib/cotizacion-lineas.ts), igual que la factura de INTEG.
+    // Subtotal = suma de las líneas (el margen va dentro de cada precio y cada servicio en su
+    // propia línea; ver lib/cotizacion-lineas.ts), igual que la factura de INTEG.
     // kind: 'total' = total general (verde lima), 'pago' = abono (verde), 'balance' = saldo pendiente
     const rows: Array<[string, string, ('total' | 'pago' | 'balance')?]> = [
       ['Subtotal', fmtMoney(t.subtotalGeneral)],
