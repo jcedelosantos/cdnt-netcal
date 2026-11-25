@@ -143,6 +143,32 @@ export async function facturarEnInteg(p: ProyectoAFacturar, enviar: boolean, reg
   return body as FacturaInteg;
 }
 
+// Vista previa: el PDF exacto que saldría al emitir, sin NCF ni valor fiscal. INTEG no crea nada ni
+// toca la secuencia; solo después de verla el usuario confirma y se llama a facturarEnInteg.
+export async function vistaPreviaEnInteg(p: ProyectoAFacturar, regimenEspecial = false): Promise<Response> {
+  const baseUrl = process.env.INTEG_API_URL?.trim().replace(/\/+$/, '');
+  const token = process.env.NETPLANNER_FACTURACION_TOKEN?.trim();
+  if (!baseUrl || !token) throw new FacturacionError('Falta conectar NetPlanner con INTEG.', 503);
+  const pedido = armarPedido(p, false, regimenEspecial);
+  let res: Response;
+  try {
+    res = await fetch(`${baseUrl}/external/netplanner/invoices/preview`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(pedido),
+      signal: AbortSignal.timeout(30_000),
+    });
+  } catch {
+    throw new FacturacionError('No se pudo conectar con INTEG para la vista previa.', 502);
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const detalle = typeof body?.error === 'string' ? body.error : `error ${res.status}`;
+    throw new FacturacionError(`INTEG no pudo armar la vista previa: ${detalle}`, res.status >= 500 ? 502 : 400);
+  }
+  return res;
+}
+
 // El PDF de la factura, tal como lo emitió INTEG.
 export async function pdfDeInteg(projectId: string): Promise<Response> {
   const baseUrl = process.env.INTEG_API_URL?.trim().replace(/\/+$/, '');
