@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { FadeIn, SlideIn } from '@/components/ui/animate';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -95,6 +96,8 @@ export default function ProjectDetailClient({ projectId }: Props) {
   const [precioSugerido, setPrecioSugerido] = useState<{ precio: number; suplidor: string | null; fecha: string } | null>(null);
   const [collapsedCats, setCollapsedCats] = useState<Record<string, boolean>>({});
   const [facturando, setFacturando] = useState(false);
+  // Vista previa de la factura (PDF de INTEG sin NCF): la emisión solo se confirma desde ahí.
+  const [vistaPrevia, setVistaPrevia] = useState<{ url: string; totalCents: number; especial: boolean } | null>(null);
   // Proyecto exonerado de ITBIS: INTEG lo factura como E44 (régimen especial). Solo con ITBIS 0%.
   const [exonerado, setExonerado] = useState(false);
   const [editandoNcf, setEditandoNcf] = useState(false);
@@ -240,25 +243,51 @@ export default function ProjectDetailClient({ projectId }: Props) {
       }
       return;
     }
-    // La factura la emite INTEG con el próximo NCF de la secuencia de Cedanet (ver
-    // lib/integ-facturacion.ts): un NCF no se puede reusar, así que se confirma antes.
+    // Antes de emitir se ve la factura exacta que va a salir (vista previa de INTEG, sin NCF): un NCF
+    // no se puede reusar, así que se confirma mirando el PDF y no un total en un aviso.
     const totales = calcularTotalesCotizacion();
-    const totalTexto = `RD$ ${totales.total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const totalCents = Math.round(totales.total * 100);
     const especial = exonerado && project?.itbis === 0;
-    const tipoTexto = especial ? ' como exonerada (E44, régimen especial)' : '';
-    if (!confirm(`Se emitirá la factura de ${project?.cliente || 'este cliente'} por ${totalTexto}${tipoTexto} en INTEG, con el próximo NCF. Si el cliente tiene correo en Inventario, INTEG se la envía. El NCF no se puede reusar. ¿Continuar?`)) return;
+    setFacturando(true);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/factura-preview`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ regimenEspecial: especial, totalEsperadoCents: totalCents }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        toast.error(d?.error ?? 'No se pudo armar la vista previa');
+        return;
+      }
+      setVistaPrevia({ url: URL.createObjectURL(await res.blob()), totalCents, especial });
+    } catch {
+      toast.error('No se pudo armar la vista previa');
+    } finally {
+      setFacturando(false);
+    }
+  };
+
+  const cerrarVistaPrevia = () => {
+    if (vistaPrevia) URL.revokeObjectURL(vistaPrevia.url);
+    setVistaPrevia(null);
+  };
+
+  const confirmarFactura = async () => {
+    if (!vistaPrevia) return;
     setFacturando(true);
     try {
       const res = await fetch(`/api/projects/${projectId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ facturar: true, enviar: true, regimenEspecial: especial, totalEsperadoCents: Math.round(totales.total * 100) }),
+        body: JSON.stringify({ facturar: true, enviar: true, regimenEspecial: vistaPrevia.especial, totalEsperadoCents: vistaPrevia.totalCents }),
       });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) {
         toast.error(d?.error ?? 'Error al facturar');
         return;
       }
+      cerrarVistaPrevia();
       toast.success(`Factura ${d?.numeroFactura ?? ''} emitida en INTEG`);
       fetchProject();
     } catch {
@@ -1443,6 +1472,24 @@ export default function ProjectDetailClient({ projectId }: Props) {
           </Card>
         </FadeIn>
       )}
+
+      <Dialog open={!!vistaPrevia} onOpenChange={(open) => { if (!open && !facturando) cerrarVistaPrevia(); }}>
+        <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Vista previa de la factura</DialogTitle>
+            <DialogDescription>
+              Así sale la factura de {project?.cliente || 'este cliente'}. Al confirmar se emite con el próximo NCF{vistaPrevia?.especial ? ' (E44, régimen especial)' : ''} y, si el cliente tiene correo, se le envía.
+            </DialogDescription>
+          </DialogHeader>
+          {vistaPrevia && <iframe src={vistaPrevia.url} title="Vista previa de la factura" className="flex-1 w-full rounded border" />}
+          <DialogFooter>
+            <Button variant="outline" onClick={cerrarVistaPrevia} disabled={facturando}>Cancelar</Button>
+            <Button onClick={confirmarFactura} disabled={facturando}>
+              <Receipt className="w-4 h-4 mr-1" /> {facturando ? 'Emitiendo...' : 'Confirmar y emitir'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
