@@ -216,7 +216,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         const proyecto = await withRetry(() =>
           prisma.project.findFirst({
             where: { id, userId },
-            include: { materiales: { select: { subtotal: true } }, inventoryClient: { select: { email: true, telefono: true, direccion: true } } },
+            include: { materiales: { select: { nombre: true, descripcion: true, cantidad: true, unidad: true, precioUnit: true } }, inventoryClient: { select: { email: true, telefono: true, direccion: true } } },
           })
         );
         if (!proyecto) return NextResponse.json({ error: 'Proyecto no encontrado' }, { status: 404 });

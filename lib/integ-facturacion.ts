@@ -10,9 +10,12 @@
  *   INTEG_API_URL                 p. ej. https://integ.cedanet.net
  *   NETPLANNER_FACTURACION_TOKEN  el mismo valor en NetPlanner y en INTEG
  *
- * A la factura va UNA sola línea con el subtotal de venta del proyecto (materiales + margen +
- * costos), igual que el subtotal consolidado de la cotización: nunca los costos de suplidor.
+ * La factura lleva las MISMAS líneas de la cotización (lib/cotizacion-lineas.ts): cada material con
+ * su precio de venta y descripción, y cada servicio (instalación, configuración, etc.) en su línea. Nunca los costos de
+ * suplidor ni una línea consolidada.
  */
+
+import { lineasCotizacion } from './cotizacion-lineas';
 
 export type ProyectoAFacturar = {
   id: string;
@@ -27,7 +30,7 @@ export type ProyectoAFacturar = {
   costoTransporte: number;
   costoConfiguracion: number;
   costoCertificacion: number;
-  materiales: Array<{ subtotal: number }>;
+  materiales: Array<{ nombre: string; descripcion?: string | null; cantidad: number; unidad?: string | null; precioUnit: number }>;
   inventoryClient?: { email: string | null; telefono: string | null; direccion: string | null } | null;
 };
 
@@ -53,17 +56,14 @@ export function integConfigurado(): boolean {
   return !!process.env.INTEG_API_URL?.trim() && !!process.env.NETPLANNER_FACTURACION_TOKEN?.trim();
 }
 
-// Mismo cálculo que la cotización (calcularTotalesCotizacion en la pantalla del proyecto y el
-// reporte 607), sobre lo que está GUARDADO en la base.
+// Mismo cálculo que la cotización (pantalla del proyecto y PDF), sobre lo que está GUARDADO en la base.
 export function totalesProyecto(p: ProyectoAFacturar) {
-  const subtotalMateriales = p.materiales.reduce((acc, m) => acc + (m.subtotal ?? 0), 0);
-  const margen = subtotalMateriales * ((p.margenGanancia ?? 0) / 100);
-  const subtotalGeneral =
-    subtotalMateriales + margen + (p.costoManoObra ?? 0) + (p.costoTransporte ?? 0) + (p.costoConfiguracion ?? 0) + (p.costoCertificacion ?? 0);
-  const subtotalCents = Math.round(subtotalGeneral * 100);
-  const itbisCents = Math.round(subtotalCents * ((p.itbis ?? 18) / 100));
-  return { subtotalCents, itbisCents, totalCents: subtotalCents + itbisCents };
+  const { subtotalCents, itbisCents, totalCents } = lineasCotizacion(p.materiales, p);
+  return { subtotalCents, itbisCents, totalCents };
 }
+
+// INTEG acepta hasta 100 líneas por factura (projectInvoiceRequestSchema en integ-app).
+const MAX_LINEAS = 100;
 
 // regimenEspecial: cliente exonerado de ITBIS en este proyecto (ej. algunos de Club Naco). INTEG lo
 // emite como E44 (régimen especial) en vez de E31; el proyecto tiene que estar con ITBIS 0%.
@@ -76,8 +76,13 @@ export function armarPedido(p: ProyectoAFacturar, enviar: boolean, regimenEspeci
   if (regimenEspecial && p.itbis !== 0) {
     throw new FacturacionError('Un proyecto exonerado (E44) va sin ITBIS: pon el ITBIS del proyecto en 0% y guarda antes de facturar.', 400);
   }
-  const { subtotalCents } = totalesProyecto(p);
+  const { lineas, subtotalCents } = lineasCotizacion(p.materiales, p);
   if (subtotalCents <= 0) throw new FacturacionError('El proyecto da cero: no hay nada que facturar.', 400);
+  // Una línea en cero no va en la factura (no suma nada y confunde al cliente).
+  const aFacturar = lineas.filter((l) => l.importeCents > 0);
+  if (aFacturar.length > MAX_LINEAS) {
+    throw new FacturacionError(`La cotización tiene ${aFacturar.length} líneas con monto; la factura admite hasta ${MAX_LINEAS}. Agrupa materiales antes de facturar.`, 400);
+  }
 
   return {
     externalRef: p.id,
@@ -89,15 +94,20 @@ export function armarPedido(p: ProyectoAFacturar, enviar: boolean, regimenEspeci
       phone: p.inventoryClient?.telefono?.trim() ?? '',
       email: p.inventoryClient?.email?.trim() ?? '',
     },
-    lines: [
-      {
-        description: p.nombre.slice(0, 200),
-        note: p.numeroCotizacion ? `Según cotización ${p.numeroCotizacion}` : '',
-        quantity: 1,
-        unitPriceCents: subtotalCents,
+    lines: aFacturar.map((l) => {
+      // INTEG cobra cantidades enteras. Con una fracción (ej. 30.5 m de cable) la línea va como 1 por
+      // el importe, con la cantidad real en la descripción: el importe y el ITBIS quedan iguales.
+      const entera = Number.isInteger(l.cantidad) && l.cantidad >= 1;
+      const detalle = entera ? '' : `${l.cantidad} ${l.unidad} a RD$${(l.precioUnitCents / 100).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+      return {
+        description: l.nombre.slice(0, 200),
+        note: [detalle, l.descripcion].filter(Boolean).join('\n').slice(0, 300),
+        quantity: entera ? l.cantidad : 1,
+        unitPriceCents: entera ? l.precioUnitCents : l.importeCents,
         taxable: p.itbis === 18,
-      },
-    ],
+      };
+    }),
+    note: p.numeroCotizacion ? `Según cotización ${p.numeroCotizacion}` : '',
     send: enviar,
     ...(regimenEspecial ? { specialRegime: true } : {}),
   };
