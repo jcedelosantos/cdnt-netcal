@@ -69,7 +69,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     if (!project) return NextResponse.json({ error: 'Proyecto no encontrado' }, { status: 404 });
 
     const body = await req.json();
-    const { categoria, nombre, cantidad, unidad, precioUnit } = body ?? {};
+    const { categoria, nombre, descripcion, cantidad, unidad, precioUnit } = body ?? {};
 
     if (!nombre?.trim()) return NextResponse.json({ error: 'El nombre es requerido' }, { status: 400 });
 
@@ -81,6 +81,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         projectId: id,
         categoria: categoria?.trim() || 'Adicionales',
         nombre: nombre.trim(),
+        descripcion: typeof descripcion === 'string' && descripcion.trim() ? descripcion.trim().slice(0, 300) : null,
         cantidad: cant,
         unidad: unidad?.trim() || 'und',
         precioUnit: precio,

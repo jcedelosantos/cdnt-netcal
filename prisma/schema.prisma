@@ -155,6 +155,7 @@ model ProjectMaterial {
   projectId       String
   categoria       String
   nombre          String
+  descripcion     String? // líneas en gris bajo el nombre, en la cotización y en la factura
   cantidad        Float   @default(0)
   unidad          String  @default("und")
   precioUnit      Float   @default(0)

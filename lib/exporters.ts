@@ -7,10 +7,16 @@ import { saveAs } from 'file-saver';
 
 export interface ExportMaterial {
   nombre: string;
+  descripcion?: string; // en gris bajo el nombre, igual que en la factura de INTEG
   cantidad: number;
   unidad: string;
   precioUnit: number;
   subtotal: number;
+}
+
+// Excel: el nombre con la descripción debajo, en la misma celda.
+function conDescripcion(m: ExportMaterial): string {
+  return m.descripcion ? `${m.nombre}\n${m.descripcion}` : m.nombre;
 }
 
 export interface ExportCategoria {
@@ -278,9 +284,14 @@ export async function exportarPDF(data: ExportData) {
     }]);
     for (const m of cat.items) {
       bodyRows.push(showP
-        ? [m.nombre, String(m.cantidad), fmtMoney(m.precioUnit), fmtMoney(m.subtotal)]
+        ? [{ content: m.nombre, styles: { fontStyle: 'bold' as const } }, String(m.cantidad), fmtMoney(m.precioUnit), fmtMoney(m.subtotal)]
         : [m.nombre, String(m.cantidad), m.unidad],
       );
+      if (m.descripcion) {
+        // Descripción en gris, en una fila pegada a la del material.
+        const gris = { textColor: [120, 120, 120] as [number, number, number], fontSize: 8, cellPadding: { top: 0, bottom: 6, left: 8, right: 8 } };
+        bodyRows.push([{ content: m.descripcion, styles: gris }, ...Array(showP ? 3 : 2).fill({ content: '', styles: gris })]);
+      }
     }
   }
 
@@ -317,8 +328,8 @@ export async function exportarPDF(data: ExportData) {
   // ── TOTALES (derecha) ────────────────────────────────────────────────
   if (showP && data.totales) {
     const t = data.totales;
-    // Subtotal consolidado: todo antes del ITBIS (materiales + margen + costos),
-    // sin desglosar el margen ni los costos internos en la cotización al cliente.
+    // Subtotal = suma de las líneas (el margen va dentro de cada precio y los costos en la línea
+    // "Instalación y servicios"; ver lib/cotizacion-lineas.ts), igual que la factura de INTEG.
     // kind: 'total' = total general (verde lima), 'pago' = abono (verde), 'balance' = saldo pendiente
     const rows: Array<[string, string, ('total' | 'pago' | 'balance')?]> = [
       ['Subtotal', fmtMoney(t.subtotalGeneral)],
@@ -453,8 +464,8 @@ export async function exportarExcel(data: ExportData) {
   for (const cat of data.categorias) {
     for (const m of cat.items) {
       const row = showP
-        ? [cat.nombre, m.nombre, m.cantidad, m.unidad, m.precioUnit, m.subtotal]
-        : [cat.nombre, m.nombre, m.cantidad, m.unidad];
+        ? [cat.nombre, conDescripcion(m), m.cantidad, m.unidad, m.precioUnit, m.subtotal]
+        : [cat.nombre, conDescripcion(m), m.cantidad, m.unidad];
       const r = ws.addRow(row);
       if (showP) {
         r.getCell(5).numFmt = numFmtMoneda;
@@ -540,6 +551,10 @@ export async function exportarWord(data: ExportData) {
   const dataCell = (text: string, align?: any) =>
     new TableCell({ children: [cellText(text, { align })] });
 
+  // Nombre del material con su descripción en gris debajo.
+  const materialCell = (m: ExportMaterial) =>
+    new TableCell({ children: [cellText(m.nombre), ...(m.descripcion ? [cellText(m.descripcion, { color: '777777' })] : [])] });
+
   const children: any[] = [];
 
   // Encabezado: membrete de empresa si está configurado, si no marca NetPlanner
@@ -615,8 +630,8 @@ export async function exportarWord(data: ExportData) {
     const bodyRows = cat.items.map((m) =>
       new TableRow({
         children: showP
-          ? [dataCell(m.nombre), dataCell(String(m.cantidad), AlignmentType.CENTER), dataCell(m.unidad, AlignmentType.CENTER), dataCell(fmtMoney(m.precioUnit), AlignmentType.RIGHT), dataCell(fmtMoney(m.subtotal), AlignmentType.RIGHT)]
-          : [dataCell(m.nombre), dataCell(String(m.cantidad), AlignmentType.CENTER), dataCell(m.unidad, AlignmentType.CENTER)],
+          ? [materialCell(m), dataCell(String(m.cantidad), AlignmentType.CENTER), dataCell(m.unidad, AlignmentType.CENTER), dataCell(fmtMoney(m.precioUnit), AlignmentType.RIGHT), dataCell(fmtMoney(m.subtotal), AlignmentType.RIGHT)]
+          : [materialCell(m), dataCell(String(m.cantidad), AlignmentType.CENTER), dataCell(m.unidad, AlignmentType.CENTER)],
       }),
     );
     children.push(new Table({

@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { FadeIn, SlideIn } from '@/components/ui/animate';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -22,6 +23,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { exportarPDF, exportarExcel, exportarWord, type ExportData } from '@/lib/exporters';
+import { lineasCotizacion } from '@/lib/cotizacion-lineas';
 
 const CATEGORIA_ICONS: Record<string, any> = {
   'Cableado Estructurado': Cable,
@@ -88,7 +90,7 @@ export default function ProjectDetailClient({ projectId }: Props) {
   const [aplicandoMarca, setAplicandoMarca] = useState(false);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [showAddMaterial, setShowAddMaterial] = useState(false);
-  const [newMaterial, setNewMaterial] = useState({ categoria: 'Adicionales', nombre: '', cantidad: 1, unidad: 'und', precioUnit: 0 });
+  const [newMaterial, setNewMaterial] = useState({ categoria: 'Adicionales', nombre: '', descripcion: '', cantidad: 1, unidad: 'und', precioUnit: 0 });
   const [savingMaterial, setSavingMaterial] = useState(false);
   const [precioSugerido, setPrecioSugerido] = useState<{ precio: number; suplidor: string | null; fecha: string } | null>(null);
   const [collapsedCats, setCollapsedCats] = useState<Record<string, boolean>>({});
@@ -169,7 +171,7 @@ export default function ProjectDetailClient({ projectId }: Props) {
       if (!res.ok) { toast.error(data?.error ?? 'Error al agregar material'); return; }
       toast.success('Material agregado');
       setShowAddMaterial(false);
-      setNewMaterial({ categoria: 'Adicionales', nombre: '', cantidad: 1, unidad: 'und', precioUnit: 0 });
+      setNewMaterial({ categoria: 'Adicionales', nombre: '', descripcion: '', cantidad: 1, unidad: 'und', precioUnit: 0 });
       setPrecioSugerido(null);
       fetchProject();
     } catch {
@@ -367,21 +369,26 @@ export default function ProjectDetailClient({ projectId }: Props) {
   const buildExportData = (): ExportData => {
     const resumen = resultado?.resumen ?? {};
     // Agrupar desde project.materiales (respeta eliminaciones y cambios de cantidad)
+    // Con precios: las mismas líneas que la factura (precio de venta con margen, ver
+    // lib/cotizacion-lineas.ts). Sin precios: la lista de materiales tal cual.
+    const actuales = materialesActuales();
+    const { lineas } = lineasCotizacion(actuales, cotizacion);
     const orden: string[] = [];
     const grupos: Record<string, any[]> = {};
-    for (const m of (project?.materiales ?? [])) {
-      const cat = m?.categoria ?? (m?.esPersonalizado ? 'Adicionales' : 'Otros');
+    lineas.forEach((l, i) => {
+      if (l.esServicios && !showPrices) return;
+      const m = (project?.materiales ?? [])[i];
+      const cat = l.esServicios ? 'Servicios' : (m?.categoria ?? (m?.esPersonalizado ? 'Adicionales' : 'Otros'));
       if (!grupos[cat]) { grupos[cat] = []; orden.push(cat); }
-      const qty = quantities[m.id] ?? m.cantidad ?? 0;
-      const price = prices[m.id] ?? m.precioUnit ?? 0;
       grupos[cat].push({
-        nombre: m?.nombre ?? '',
-        cantidad: qty,
-        unidad: m?.unidad ?? 'und',
-        precioUnit: price,
-        subtotal: qty * price,
+        nombre: l.nombre,
+        descripcion: l.descripcion,
+        cantidad: l.cantidad,
+        unidad: l.unidad,
+        precioUnit: l.precioUnitCents / 100,
+        subtotal: l.importeCents / 100,
       });
-    }
+    });
     const t = showPrices ? calcularTotalesCotizacion() : null;
     return {
       moneda,
@@ -562,23 +569,30 @@ export default function ProjectDetailClient({ projectId }: Props) {
     return stored?.id ?? '';
   };
 
+  // Materiales con la cantidad y el precio que están en pantalla (aunque no se hayan guardado).
+  const materialesActuales = () =>
+    (project?.materiales ?? []).map((m: any) => ({
+      nombre: m?.nombre ?? '',
+      descripcion: m?.descripcion ?? null,
+      cantidad: quantities[m.id] ?? m.cantidad ?? 0,
+      unidad: m?.unidad ?? 'und',
+      precioUnit: prices[m.id] ?? m.precioUnit ?? 0,
+    }));
+
+  // El total sale de las líneas de la cotización (ITBIS por línea), igual que la factura de INTEG.
   const calcularTotalesCotizacion = () => {
-    const subtotalMateriales = (project?.materiales ?? []).reduce((acc: number, m: any) => {
-      const qty = quantities[m.id] ?? m.cantidad ?? 0;
-      const price = prices[m.id] ?? m.precioUnit ?? 0;
-      return acc + qty * price;
-    }, 0);
+    const actuales = materialesActuales();
+    const subtotalMateriales = actuales.reduce((acc: number, m: any) => acc + m.cantidad * m.precioUnit, 0);
     const margen = subtotalMateriales * ((cotizacion?.margenGanancia ?? 0) / 100);
     const costosAdicionales = (cotizacion?.costoManoObra ?? 0) + (cotizacion?.costoTransporte ?? 0) + (cotizacion?.costoConfiguracion ?? 0) + (cotizacion?.costoCertificacion ?? 0);
-    const subtotalGeneral = subtotalMateriales + margen + costosAdicionales;
-    const itbisValor = subtotalGeneral * ((cotizacion?.itbis ?? 18) / 100);
+    const { subtotalCents, itbisCents, totalCents } = lineasCotizacion(actuales, cotizacion);
     return {
       subtotalMateriales: Math.round(subtotalMateriales * 100) / 100,
       margen: Math.round(margen * 100) / 100,
       costosAdicionales: Math.round(costosAdicionales * 100) / 100,
-      subtotalGeneral: Math.round(subtotalGeneral * 100) / 100,
-      itbisValor: Math.round(itbisValor * 100) / 100,
-      total: Math.round((subtotalGeneral + itbisValor) * 100) / 100,
+      subtotalGeneral: subtotalCents / 100,
+      itbisValor: itbisCents / 100,
+      total: totalCents / 100,
     };
   };
 
@@ -966,6 +980,11 @@ export default function ProjectDetailClient({ projectId }: Props) {
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewMaterial((p) => ({ ...p, precioUnit: parseFloat(e.target.value) || 0 }))} />
                 </div>
               </div>
+              <div className="space-y-1 mt-3">
+                <label className="text-xs text-muted-foreground">Descripción (opcional)</label>
+                <Textarea rows={2} maxLength={300} placeholder="Ej: Botella de 1 litro." value={newMaterial.descripcion}
+                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setNewMaterial((p) => ({ ...p, descripcion: e.target.value }))} />
+              </div>
               <div className="flex gap-2 mt-4">
                 <Button size="sm" onClick={handleAddMaterial} disabled={savingMaterial}>
                   <Plus className="w-4 h-4 mr-1" /> {savingMaterial ? 'Guardando...' : 'Agregar'}
@@ -1030,6 +1049,9 @@ export default function ProjectDetailClient({ projectId }: Props) {
                               <span className="flex items-center gap-2">
                                 <span>
                                   {m?.nombre ?? ''}
+                                  {m?.descripcion && (
+                                    <span className="block text-[11px] font-normal text-muted-foreground whitespace-pre-line">{m.descripcion}</span>
+                                  )}
                                   {showPrices && modelos[m.id] && (
                                     <span className="block text-[11px] font-normal text-muted-foreground">{modelos[m.id]}</span>
                                   )}
